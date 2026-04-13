@@ -9,10 +9,13 @@ import (
 )
 
 type Querier interface {
-	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
-	DeleteUser(ctx context.Context, id int64) error
-	GetUserByEmail(ctx context.Context, email string) (User, error)
-	GetUserByID(ctx context.Context, id int64) (User, error)
+	CountSites(ctx context.Context) (int64, error)
+	CreateSite(ctx context.Context, arg CreateSiteParams) (Site, error)
+	DeleteSite(ctx context.Context, id int64) error
+	GetSiteByDomain(ctx context.Context, domain string) (Site, error)
+	GetSiteByID(ctx context.Context, id int64) (Site, error)
+	ListSites(ctx context.Context, arg ListSitesParams) ([]Site, error)
+	UpdateSite(ctx context.Context, arg UpdateSiteParams) (Site, error)
 }
 
 var _ Querier = (*Queries)(nil)

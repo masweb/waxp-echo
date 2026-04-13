@@ -30,14 +30,14 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	if cfg.Env == "development" {
 		e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 			AllowOrigins:     []string{"http://localhost:5173"},
-			AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete},
-			AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, "Cache-Control"},
+			AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
 			AllowCredentials: true,
 		}))
 	}
 
 	queries := db.New(pool)
 	authHandler := handler.NewAuthHandler(queries, cfg.JWTSecret)
+	siteHandler := handler.NewSiteHandler(queries, pool)
 
 	e.GET("/health", handler.Health)
 
@@ -49,6 +49,13 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 
 	protected := api.Group("", appmiddleware.JWTAuth(cfg.JWTSecret))
 	protected.GET("/me", authHandler.Me)
+
+	sites := protected.Group("/sites")
+	sites.POST("", siteHandler.Create)
+	sites.GET("", siteHandler.List)
+	sites.GET("/:id", siteHandler.GetByID)
+	sites.PUT("/:id", siteHandler.Update)
+	sites.DELETE("/:id", siteHandler.Delete)
 
 	return &Server{
 		Echo:   e,

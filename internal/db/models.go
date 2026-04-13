@@ -8,6 +8,67 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Block struct {
+	ID         pgtype.UUID        `json:"id"`
+	SiteID     int64              `json:"site_id"`
+	BlockGroup pgtype.UUID        `json:"block_group"`
+	LocaleID   int64              `json:"locale_id"`
+	Type       string             `json:"type"`
+	Name       string             `json:"name"`
+	Content    []byte             `json:"content"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Blog struct {
+	ID        int64              `json:"id"`
+	SiteID    int64              `json:"site_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type BlogSlug struct {
+	ID       int64  `json:"id"`
+	BlogID   int64  `json:"blog_id"`
+	LocaleID int64  `json:"locale_id"`
+	Slug     string `json:"slug"`
+}
+
+type Page struct {
+	ID          int64              `json:"id"`
+	SiteID      int64              `json:"site_id"`
+	BlogID      pgtype.Int8        `json:"blog_id"`
+	ParentID    pgtype.Int8        `json:"parent_id"`
+	Type        string             `json:"type"`
+	Layout      []byte             `json:"layout"`
+	PublishedAt pgtype.Timestamptz `json:"published_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PageSlug struct {
+	ID       int64  `json:"id"`
+	PageID   int64  `json:"page_id"`
+	LocaleID int64  `json:"locale_id"`
+	Slug     string `json:"slug"`
+}
+
+type Site struct {
+	ID        int64              `json:"id"`
+	Name      string             `json:"name"`
+	Domain    string             `json:"domain"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type SiteLocale struct {
+	ID        int64              `json:"id"`
+	SiteID    int64              `json:"site_id"`
+	Code      string             `json:"code"`
+	IsDefault bool               `json:"is_default"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type User struct {
 	ID           int64              `json:"id"`
 	Email        string             `json:"email"`
