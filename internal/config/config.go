@@ -1,0 +1,49 @@
+package config
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/joho/godotenv"
+)
+
+type Config struct {
+	DatabaseURL string
+	JWTSecret   string
+	ServerPort  string
+	Env         string
+}
+
+func Load() (*Config, error) {
+	env := os.Getenv("ENV")
+	if env == "" || env == "development" {
+		_ = godotenv.Load()
+	}
+
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		return nil, fmt.Errorf("DATABASE_URL is required")
+	}
+
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		return nil, fmt.Errorf("JWT_SECRET is required")
+	}
+
+	serverPort := os.Getenv("SERVER_PORT")
+	if serverPort == "" {
+		serverPort = ":8080"
+	}
+
+	env = os.Getenv("ENV")
+	if env == "" {
+		env = "development"
+	}
+
+	return &Config{
+		DatabaseURL: databaseURL,
+		JWTSecret:   jwtSecret,
+		ServerPort:  serverPort,
+		Env:         env,
+	}, nil
+}

@@ -1,0 +1,83 @@
+package server
+
+import (
+	"context"
+	"log/slog"
+	"net/http"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
+
+	"waxp/echo/internal/config"
+	"waxp/echo/internal/db"
+	"waxp/echo/internal/handler"
+	appmiddleware "waxp/echo/internal/middleware"
+)
+
+type Server struct {
+	Echo   *echo.Echo
+	Config *config.Config
+	Pool   *pgxpool.Pool
+}
+
+func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
+	e := echo.New()
+
+	e.Use(middleware.RequestLogger())
+	e.Use(middleware.Recover())
+
+	if cfg.Env == "development" {
+		e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+			AllowOrigins:     []string{"http://localhost:5173"},
+			AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete},
+			AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, "Cache-Control"},
+			AllowCredentials: true,
+		}))
+	}
+
+	queries := db.New(pool)
+	authHandler := handler.NewAuthHandler(queries, cfg.JWTSecret)
+
+	e.GET("/health", handler.Health)
+
+	api := e.Group("/api")
+
+	auth := api.Group("/auth")
+	auth.POST("/register", authHandler.Register)
+	auth.POST("/login", authHandler.Login)
+
+	protected := api.Group("", appmiddleware.JWTAuth(cfg.JWTSecret))
+	protected.GET("/me", authHandler.Me)
+
+	return &Server{
+		Echo:   e,
+		Config: cfg,
+		Pool:   pool,
+	}
+}
+
+func (s *Server) Start(ctx context.Context) error {
+	slog.Info("starting server", "port", s.Config.ServerPort, "env", s.Config.Env)
+
+	server := &http.Server{
+		Addr:    s.Config.ServerPort,
+		Handler: s.Echo,
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			errCh <- err
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		slog.Info("shutting down server")
+		shutdownCtx := context.Background()
+		return server.Shutdown(shutdownCtx)
+	case err := <-errCh:
+		return err
+	}
+}
