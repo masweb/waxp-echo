@@ -7,6 +7,8 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countSites = `-- name: CountSites :one
@@ -21,23 +23,34 @@ func (q *Queries) CountSites(ctx context.Context) (int64, error) {
 }
 
 const createSite = `-- name: CreateSite :one
-INSERT INTO sites (name, domain)
-VALUES ($1, $2)
-RETURNING id, name, domain, created_at, updated_at
+INSERT INTO sites (name, domain, options)
+VALUES ($1, $2, $3)
+RETURNING id, name, domain, options, created_at, updated_at
 `
 
 type CreateSiteParams struct {
-	Name   string `json:"name"`
-	Domain string `json:"domain"`
+	Name    string `json:"name"`
+	Domain  string `json:"domain"`
+	Options []byte `json:"options"`
 }
 
-func (q *Queries) CreateSite(ctx context.Context, arg CreateSiteParams) (Site, error) {
-	row := q.db.QueryRow(ctx, createSite, arg.Name, arg.Domain)
-	var i Site
+type CreateSiteRow struct {
+	ID        int64              `json:"id"`
+	Name      string             `json:"name"`
+	Domain    string             `json:"domain"`
+	Options   []byte             `json:"options"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) CreateSite(ctx context.Context, arg CreateSiteParams) (CreateSiteRow, error) {
+	row := q.db.QueryRow(ctx, createSite, arg.Name, arg.Domain, arg.Options)
+	var i CreateSiteRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.Domain,
+		&i.Options,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -54,16 +67,26 @@ func (q *Queries) DeleteSite(ctx context.Context, id int64) error {
 }
 
 const getSiteByDomain = `-- name: GetSiteByDomain :one
-SELECT id, name, domain, created_at, updated_at FROM sites WHERE domain = $1
+SELECT id, name, domain, options, created_at, updated_at FROM sites WHERE domain = $1
 `
 
-func (q *Queries) GetSiteByDomain(ctx context.Context, domain string) (Site, error) {
+type GetSiteByDomainRow struct {
+	ID        int64              `json:"id"`
+	Name      string             `json:"name"`
+	Domain    string             `json:"domain"`
+	Options   []byte             `json:"options"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GetSiteByDomain(ctx context.Context, domain string) (GetSiteByDomainRow, error) {
 	row := q.db.QueryRow(ctx, getSiteByDomain, domain)
-	var i Site
+	var i GetSiteByDomainRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.Domain,
+		&i.Options,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -71,16 +94,26 @@ func (q *Queries) GetSiteByDomain(ctx context.Context, domain string) (Site, err
 }
 
 const getSiteByID = `-- name: GetSiteByID :one
-SELECT id, name, domain, created_at, updated_at FROM sites WHERE id = $1
+SELECT id, name, domain, options, created_at, updated_at FROM sites WHERE id = $1
 `
 
-func (q *Queries) GetSiteByID(ctx context.Context, id int64) (Site, error) {
+type GetSiteByIDRow struct {
+	ID        int64              `json:"id"`
+	Name      string             `json:"name"`
+	Domain    string             `json:"domain"`
+	Options   []byte             `json:"options"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GetSiteByID(ctx context.Context, id int64) (GetSiteByIDRow, error) {
 	row := q.db.QueryRow(ctx, getSiteByID, id)
-	var i Site
+	var i GetSiteByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.Domain,
+		&i.Options,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -88,7 +121,7 @@ func (q *Queries) GetSiteByID(ctx context.Context, id int64) (Site, error) {
 }
 
 const listSites = `-- name: ListSites :many
-SELECT id, name, domain, created_at, updated_at
+SELECT id, name, domain, options, created_at, updated_at
 FROM sites
 WHERE ($1::BIGINT IS NULL OR id > $1)
 ORDER BY id ASC
@@ -100,19 +133,29 @@ type ListSitesParams struct {
 	Limit   int32 `json:"limit"`
 }
 
-func (q *Queries) ListSites(ctx context.Context, arg ListSitesParams) ([]Site, error) {
+type ListSitesRow struct {
+	ID        int64              `json:"id"`
+	Name      string             `json:"name"`
+	Domain    string             `json:"domain"`
+	Options   []byte             `json:"options"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) ListSites(ctx context.Context, arg ListSitesParams) ([]ListSitesRow, error) {
 	rows, err := q.db.Query(ctx, listSites, arg.Column1, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Site
+	var items []ListSitesRow
 	for rows.Next() {
-		var i Site
+		var i ListSitesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
 			&i.Domain,
+			&i.Options,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -128,24 +171,40 @@ func (q *Queries) ListSites(ctx context.Context, arg ListSitesParams) ([]Site, e
 
 const updateSite = `-- name: UpdateSite :one
 UPDATE sites
-SET name = $1, domain = $2, updated_at = NOW()
-WHERE id = $3
-RETURNING id, name, domain, created_at, updated_at
+SET name = $1, domain = $2, options = $3, updated_at = NOW()
+WHERE id = $4
+RETURNING id, name, domain, options, created_at, updated_at
 `
 
 type UpdateSiteParams struct {
-	Name   string `json:"name"`
-	Domain string `json:"domain"`
-	ID     int64  `json:"id"`
+	Name    string `json:"name"`
+	Domain  string `json:"domain"`
+	Options []byte `json:"options"`
+	ID      int64  `json:"id"`
 }
 
-func (q *Queries) UpdateSite(ctx context.Context, arg UpdateSiteParams) (Site, error) {
-	row := q.db.QueryRow(ctx, updateSite, arg.Name, arg.Domain, arg.ID)
-	var i Site
+type UpdateSiteRow struct {
+	ID        int64              `json:"id"`
+	Name      string             `json:"name"`
+	Domain    string             `json:"domain"`
+	Options   []byte             `json:"options"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) UpdateSite(ctx context.Context, arg UpdateSiteParams) (UpdateSiteRow, error) {
+	row := q.db.QueryRow(ctx, updateSite,
+		arg.Name,
+		arg.Domain,
+		arg.Options,
+		arg.ID,
+	)
+	var i UpdateSiteRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.Domain,
+		&i.Options,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

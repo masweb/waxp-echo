@@ -38,6 +38,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	queries := db.New(pool)
 	authHandler := handler.NewAuthHandler(queries, cfg.JWTSecret)
 	siteHandler := handler.NewSiteHandler(queries, pool)
+	localeHandler := handler.NewLocaleHandler(queries, pool)
 
 	e.GET("/health", handler.Health)
 
@@ -56,6 +57,16 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	sites.GET("/:id", siteHandler.GetByID)
 	sites.PUT("/:id", siteHandler.Update)
 	sites.DELETE("/:id", siteHandler.Delete)
+	sites.POST("/:id/locales", localeHandler.Add)
+	sites.DELETE("/:id/locales/:localeId", localeHandler.Remove)
+
+	pageHandler := handler.NewPageHandler(queries, pool)
+	sites.POST("/:id/pages", pageHandler.Create)
+	sites.GET("/:id/pages", pageHandler.List)
+	sites.GET("/:id/pages/:pageId", pageHandler.GetByID)
+	sites.PUT("/:id/pages/:pageId", pageHandler.Update)
+	sites.DELETE("/:id/pages/:pageId", pageHandler.Delete)
+	sites.GET("/:id/routes", pageHandler.Routes)
 
 	return &Server{
 		Echo:   e,

@@ -59,6 +59,7 @@ type Site struct {
 	Domain    string             `json:"domain"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	Options   []byte             `json:"options"`
 }
 
 type SiteLocale struct {

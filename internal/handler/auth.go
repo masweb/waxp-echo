@@ -61,7 +61,7 @@ func (h *AuthHandler) Register(c *echo.Context) error {
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return ErrorJSON(c, http.StatusInternalServerError, "failed to hash password")
+		return InternalError(c, "failed to hash password", err)
 	}
 
 	user, err := h.queries.CreateUser(c.Request().Context(), db.CreateUserParams{
@@ -73,12 +73,12 @@ func (h *AuthHandler) Register(c *echo.Context) error {
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return ErrorJSON(c, http.StatusConflict, "email already exists")
 		}
-		return ErrorJSON(c, http.StatusInternalServerError, "failed to create user")
+		return InternalError(c, "failed to create user", err)
 	}
 
 	token, err := middleware.GenerateToken(h.jwtSecret, user.ID, user.Email)
 	if err != nil {
-		return ErrorJSON(c, http.StatusInternalServerError, "failed to generate token")
+		return InternalError(c, "failed to generate token", err)
 	}
 
 	return c.JSON(http.StatusCreated, AuthResponse{
@@ -102,7 +102,7 @@ func (h *AuthHandler) Login(c *echo.Context) error {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrorJSON(c, http.StatusUnauthorized, "invalid credentials")
 		}
-		return ErrorJSON(c, http.StatusInternalServerError, "failed to get user")
+		return InternalError(c, "failed to get user", err)
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
@@ -111,7 +111,7 @@ func (h *AuthHandler) Login(c *echo.Context) error {
 
 	token, err := middleware.GenerateToken(h.jwtSecret, user.ID, user.Email)
 	if err != nil {
-		return ErrorJSON(c, http.StatusInternalServerError, "failed to generate token")
+		return InternalError(c, "failed to generate token", err)
 	}
 
 	return c.JSON(http.StatusOK, AuthResponse{

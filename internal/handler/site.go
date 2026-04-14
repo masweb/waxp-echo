@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -24,20 +25,36 @@ func NewSiteHandler(queries *db.Queries, pool *pgxpool.Pool) *SiteHandler {
 	return &SiteHandler{queries: queries, pool: pool}
 }
 
+type CreateSiteLocaleInput struct {
+	Code      string `json:"code"`
+	IsDefault bool   `json:"is_default"`
+}
+
 type CreateSiteRequest struct {
-	Name   string `json:"name" validate:"required,min=1,max=255"`
-	Domain string `json:"domain" validate:"required,min=1,max=255"`
+	Name    string                  `json:"name" validate:"required,min=1,max=255"`
+	Domain  string                  `json:"domain" validate:"required,min=1,max=255"`
+	Options json.RawMessage         `json:"options,omitempty"`
+	Locales []CreateSiteLocaleInput `json:"locales,omitempty"`
 }
 
 type UpdateSiteRequest struct {
-	Name   string `json:"name" validate:"required,min=1,max=255"`
-	Domain string `json:"domain" validate:"required,min=1,max=255"`
+	Name    string          `json:"name" validate:"required,min=1,max=255"`
+	Domain  string          `json:"domain" validate:"required,min=1,max=255"`
+	Options json.RawMessage `json:"options,omitempty"`
+}
+
+type LocaleResponse struct {
+	ID        int64  `json:"id"`
+	Code      string `json:"code"`
+	IsDefault bool   `json:"is_default"`
 }
 
 type SiteResponse struct {
-	ID     int64  `json:"id"`
-	Name   string `json:"name"`
-	Domain string `json:"domain"`
+	ID      int64            `json:"id"`
+	Name    string           `json:"name"`
+	Domain  string           `json:"domain"`
+	Options json.RawMessage  `json:"options"`
+	Locales []LocaleResponse `json:"locales"`
 }
 
 type PaginatedResponse[T any] struct {
@@ -57,22 +74,82 @@ func (h *SiteHandler) Create(c *echo.Context) error {
 		return ErrorJSON(c, http.StatusBadRequest, "name and domain are required")
 	}
 
-	site, err := h.queries.CreateSite(c.Request().Context(), db.CreateSiteParams{
-		Name:   req.Name,
-		Domain: req.Domain,
+	defaultCount := 0
+	for _, l := range req.Locales {
+		if l.Code == "" {
+			return ErrorJSON(c, http.StatusBadRequest, "locale code is required")
+		}
+		if l.IsDefault {
+			defaultCount++
+		}
+	}
+	if defaultCount > 1 {
+		return ErrorJSON(c, http.StatusBadRequest, "only one locale can be the default")
+	}
+
+	options := req.Options
+	if options == nil {
+		options = json.RawMessage(`{}`)
+	}
+
+	ctx := c.Request().Context()
+
+	tx, err := h.pool.Begin(ctx)
+	if err != nil {
+		return InternalError(c, "failed to begin transaction", err)
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := h.queries.WithTx(tx)
+
+	site, err := qtx.CreateSite(ctx, db.CreateSiteParams{
+		Name:    req.Name,
+		Domain:  req.Domain,
+		Options: options,
 	})
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return ErrorJSON(c, http.StatusConflict, "domain already exists")
 		}
-		return ErrorJSON(c, http.StatusInternalServerError, "failed to create site")
+		return InternalError(c, "failed to create site", err)
+	}
+
+	var locales []LocaleResponse
+	for _, l := range req.Locales {
+		locale, err := qtx.CreateSiteLocale(ctx, db.CreateSiteLocaleParams{
+			SiteID:    site.ID,
+			Code:      l.Code,
+			IsDefault: l.IsDefault,
+		})
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				return ErrorJSON(c, http.StatusConflict, fmt.Sprintf("locale code '%s' already exists", l.Code))
+			}
+			return InternalError(c, "failed to create locale", err)
+		}
+		locales = append(locales, LocaleResponse{
+			ID:        locale.ID,
+			Code:      locale.Code,
+			IsDefault: locale.IsDefault,
+		})
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return InternalError(c, "failed to commit transaction", err)
+	}
+
+	if locales == nil {
+		locales = []LocaleResponse{}
 	}
 
 	return c.JSON(http.StatusCreated, SiteResponse{
-		ID:     site.ID,
-		Name:   site.Name,
-		Domain: site.Domain,
+		ID:      site.ID,
+		Name:    site.Name,
+		Domain:  site.Domain,
+		Options: site.Options,
+		Locales: locales,
 	})
 }
 
@@ -87,13 +164,20 @@ func (h *SiteHandler) GetByID(c *echo.Context) error {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrorJSON(c, http.StatusNotFound, "site not found")
 		}
-		return ErrorJSON(c, http.StatusInternalServerError, "failed to get site")
+		return InternalError(c, "failed to get site", err)
+	}
+
+	locales, err := h.queries.ListSiteLocales(c.Request().Context(), id)
+	if err != nil {
+		return InternalError(c, "failed to get locales", err)
 	}
 
 	return c.JSON(http.StatusOK, SiteResponse{
-		ID:     site.ID,
-		Name:   site.Name,
-		Domain: site.Domain,
+		ID:      site.ID,
+		Name:    site.Name,
+		Domain:  site.Domain,
+		Options: site.Options,
+		Locales: toLocaleResponses(locales),
 	})
 }
 
@@ -140,10 +224,10 @@ func (h *SiteHandler) List(c *echo.Context) error {
 	countSQL := "SELECT COUNT(*) FROM sites" + result.WhereClause
 	var total int64
 	if err := h.pool.QueryRow(ctx, countSQL, result.Args...).Scan(&total); err != nil {
-		return ErrorJSON(c, http.StatusInternalServerError, "failed to count sites")
+		return InternalError(c, "failed to count sites", err)
 	}
 
-	listSQL := "SELECT id, name, domain, created_at, updated_at FROM sites" + result.WhereClause + " ORDER BY id ASC"
+	listSQL := "SELECT id, name, domain, options, created_at, updated_at FROM sites" + result.WhereClause + " ORDER BY id ASC"
 
 	paginated := limit != nil
 	var listArgs []any
@@ -157,28 +241,34 @@ func (h *SiteHandler) List(c *echo.Context) error {
 
 	rows, err := h.pool.Query(ctx, listSQL, listArgs...)
 	if err != nil {
-		return ErrorJSON(c, http.StatusInternalServerError, "failed to list sites")
+		return InternalError(c, "failed to list sites", err)
 	}
 	defer rows.Close()
 
 	var sites []db.Site
 	for rows.Next() {
 		var s db.Site
-		if err := rows.Scan(&s.ID, &s.Name, &s.Domain, &s.CreatedAt, &s.UpdatedAt); err != nil {
-			return ErrorJSON(c, http.StatusInternalServerError, "failed to scan site")
+		if err := rows.Scan(&s.ID, &s.Name, &s.Domain, &s.Options, &s.CreatedAt, &s.UpdatedAt); err != nil {
+			return InternalError(c, "failed to scan site", err)
 		}
 		sites = append(sites, s)
 	}
 	if err := rows.Err(); err != nil {
-		return ErrorJSON(c, http.StatusInternalServerError, "failed to list sites")
+		return InternalError(c, "failed to list sites", err)
 	}
 
 	data := make([]SiteResponse, 0, len(sites))
 	for _, s := range sites {
+		locales, err := h.queries.ListSiteLocales(ctx, s.ID)
+		if err != nil {
+			return InternalError(c, "failed to get locales", err)
+		}
 		data = append(data, SiteResponse{
-			ID:     s.ID,
-			Name:   s.Name,
-			Domain: s.Domain,
+			ID:      s.ID,
+			Name:    s.Name,
+			Domain:  s.Domain,
+			Options: s.Options,
+			Locales: toLocaleResponses(locales),
 		})
 	}
 
@@ -215,10 +305,16 @@ func (h *SiteHandler) Update(c *echo.Context) error {
 		return ErrorJSON(c, http.StatusBadRequest, "name and domain are required")
 	}
 
+	options := req.Options
+	if options == nil {
+		options = json.RawMessage(`{}`)
+	}
+
 	site, err := h.queries.UpdateSite(c.Request().Context(), db.UpdateSiteParams{
-		Name:   req.Name,
-		Domain: req.Domain,
-		ID:     id,
+		Name:    req.Name,
+		Domain:  req.Domain,
+		Options: options,
+		ID:      id,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -228,13 +324,20 @@ func (h *SiteHandler) Update(c *echo.Context) error {
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return ErrorJSON(c, http.StatusConflict, "domain already exists")
 		}
-		return ErrorJSON(c, http.StatusInternalServerError, "failed to update site")
+		return InternalError(c, "failed to update site", err)
+	}
+
+	locales, err := h.queries.ListSiteLocales(c.Request().Context(), id)
+	if err != nil {
+		return InternalError(c, "failed to get locales", err)
 	}
 
 	return c.JSON(http.StatusOK, SiteResponse{
-		ID:     site.ID,
-		Name:   site.Name,
-		Domain: site.Domain,
+		ID:      site.ID,
+		Name:    site.Name,
+		Domain:  site.Domain,
+		Options: site.Options,
+		Locales: toLocaleResponses(locales),
 	})
 }
 
@@ -249,12 +352,24 @@ func (h *SiteHandler) Delete(c *echo.Context) error {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrorJSON(c, http.StatusNotFound, "site not found")
 		}
-		return ErrorJSON(c, http.StatusInternalServerError, "failed to get site")
+		return InternalError(c, "failed to get site", err)
 	}
 
 	if err := h.queries.DeleteSite(c.Request().Context(), id); err != nil {
-		return ErrorJSON(c, http.StatusInternalServerError, "failed to delete site")
+		return InternalError(c, "failed to delete site", err)
 	}
 
 	return c.JSON(http.StatusNoContent, nil)
+}
+
+func toLocaleResponses(locales []db.SiteLocale) []LocaleResponse {
+	result := make([]LocaleResponse, 0, len(locales))
+	for _, l := range locales {
+		result = append(result, LocaleResponse{
+			ID:        l.ID,
+			Code:      l.Code,
+			IsDefault: l.IsDefault,
+		})
+	}
+	return result
 }

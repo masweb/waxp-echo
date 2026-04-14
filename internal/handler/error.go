@@ -2,13 +2,14 @@ package handler
 
 import (
 	"github.com/labstack/echo/v5"
+
+	"waxp/echo/internal/apierror"
 )
 
-type APIError struct {
-	Error string `json:"error"`
-	Code  int    `json:"code"`
+func ErrorJSON(c *echo.Context, code int, msg string, err ...error) error {
+	return apierror.JSON(c, code, msg, err...)
 }
 
-func ErrorJSON(c *echo.Context, code int, msg string) error {
-	return c.JSON(code, APIError{Error: msg, Code: code})
+func InternalError(c *echo.Context, msg string, err error) error {
+	return apierror.Internal(c, msg, err)
 }

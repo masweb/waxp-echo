@@ -10,12 +10,27 @@ import (
 
 type Querier interface {
 	CountSites(ctx context.Context) (int64, error)
-	CreateSite(ctx context.Context, arg CreateSiteParams) (Site, error)
+	CreatePage(ctx context.Context, arg CreatePageParams) (Page, error)
+	CreatePageSlug(ctx context.Context, arg CreatePageSlugParams) (PageSlug, error)
+	CreateSite(ctx context.Context, arg CreateSiteParams) (CreateSiteRow, error)
+	CreateSiteLocale(ctx context.Context, arg CreateSiteLocaleParams) (SiteLocale, error)
+	DeletePage(ctx context.Context, arg DeletePageParams) error
+	DeletePageSlugsByPageID(ctx context.Context, pageID int64) error
 	DeleteSite(ctx context.Context, id int64) error
-	GetSiteByDomain(ctx context.Context, domain string) (Site, error)
-	GetSiteByID(ctx context.Context, id int64) (Site, error)
-	ListSites(ctx context.Context, arg ListSitesParams) ([]Site, error)
-	UpdateSite(ctx context.Context, arg UpdateSiteParams) (Site, error)
+	DeleteSiteLocale(ctx context.Context, arg DeleteSiteLocaleParams) error
+	GetBlogByID(ctx context.Context, arg GetBlogByIDParams) (Blog, error)
+	GetBlogRoutes(ctx context.Context, siteID int64) ([]GetBlogRoutesRow, error)
+	GetPageByID(ctx context.Context, arg GetPageByIDParams) (Page, error)
+	GetPageRoutes(ctx context.Context, siteID int64) ([]GetPageRoutesRow, error)
+	GetPageSlugsByPageID(ctx context.Context, pageID int64) ([]PageSlug, error)
+	GetPostRoutes(ctx context.Context, siteID int64) ([]GetPostRoutesRow, error)
+	GetSiteByDomain(ctx context.Context, domain string) (GetSiteByDomainRow, error)
+	GetSiteByID(ctx context.Context, id int64) (GetSiteByIDRow, error)
+	GetSiteLocaleByID(ctx context.Context, id int64) (SiteLocale, error)
+	ListSiteLocales(ctx context.Context, siteID int64) ([]SiteLocale, error)
+	ListSites(ctx context.Context, arg ListSitesParams) ([]ListSitesRow, error)
+	UpdatePage(ctx context.Context, arg UpdatePageParams) (Page, error)
+	UpdateSite(ctx context.Context, arg UpdateSiteParams) (UpdateSiteRow, error)
 }
 
 var _ Querier = (*Queries)(nil)
