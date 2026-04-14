@@ -584,7 +584,6 @@ func (h *PageHandler) Routes(c *echo.Context) error {
 
 	ctx := c.Request().Context()
 
-	// Verify site exists
 	_, err = h.queries.GetSiteByID(ctx, siteID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -593,45 +592,9 @@ func (h *PageHandler) Routes(c *echo.Context) error {
 		return InternalError(c, "failed to get site", err)
 	}
 
-	routes := make(map[string][]RouteEntry)
-
-	// Page routes
-	pageRoutes, err := h.queries.GetPageRoutes(ctx, siteID)
+	routes, err := buildRoutesMap(ctx, h.queries, siteID)
 	if err != nil {
-		return InternalError(c, "failed to get page routes", err)
-	}
-	for _, r := range pageRoutes {
-		path := buildRoutePath(r.LocaleCode, r.IsDefault, r.Path)
-		routes[r.LocaleCode] = append(routes[r.LocaleCode], RouteEntry{
-			Path:   path,
-			PageID: &r.PageID,
-		})
-	}
-
-	// Blog routes
-	blogRoutes, err := h.queries.GetBlogRoutes(ctx, siteID)
-	if err != nil {
-		return InternalError(c, "failed to get blog routes", err)
-	}
-	for _, r := range blogRoutes {
-		path := buildRoutePath(r.LocaleCode, r.IsDefault, r.Path)
-		routes[r.LocaleCode] = append(routes[r.LocaleCode], RouteEntry{
-			Path:   path,
-			BlogID: &r.BlogID,
-		})
-	}
-
-	// Post routes
-	postRoutes, err := h.queries.GetPostRoutes(ctx, siteID)
-	if err != nil {
-		return InternalError(c, "failed to get post routes", err)
-	}
-	for _, r := range postRoutes {
-		path := buildRoutePath(r.LocaleCode, r.IsDefault, r.Path)
-		routes[r.LocaleCode] = append(routes[r.LocaleCode], RouteEntry{
-			Path:   path,
-			PageID: &r.PageID,
-		})
+		return InternalError(c, err.Error(), nil)
 	}
 
 	return c.JSON(http.StatusOK, RoutesResponse{Routes: routes})

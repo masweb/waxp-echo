@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -46,11 +47,13 @@ type UpdateSiteRequest struct {
 }
 
 type SiteResponse struct {
-	ID      int64            `json:"id"`
-	Name    string           `json:"name"`
-	Domain  string           `json:"domain"`
-	Options json.RawMessage  `json:"options"`
-	Locales []LocaleResponse `json:"locales"`
+	ID       int64                   `json:"id"`
+	Name     string                  `json:"name"`
+	Domain   string                  `json:"domain"`
+	Options  json.RawMessage         `json:"options"`
+	Locales  []LocaleResponse        `json:"locales"`
+	Routes   map[string][]RouteEntry `json:"routes"`
+	HomePage *PageResponse           `json:"home_page,omitempty"`
 }
 
 type PaginatedResponse[T any] struct {
@@ -307,7 +310,9 @@ func (h *SiteHandler) GetByID(c *echo.Context) error {
 		return ErrorJSON(c, http.StatusBadRequest, "invalid id")
 	}
 
-	site, err := h.queries.GetSiteByID(c.Request().Context(), id)
+	ctx := c.Request().Context()
+
+	site, err := h.queries.GetSiteByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrorJSON(c, http.StatusNotFound, "site not found")
@@ -315,18 +320,84 @@ func (h *SiteHandler) GetByID(c *echo.Context) error {
 		return InternalError(c, "failed to get site", err)
 	}
 
-	locales, err := h.queries.ListSiteLocales(c.Request().Context(), id)
+	locales, err := h.queries.ListSiteLocales(ctx, id)
 	if err != nil {
 		return InternalError(c, "failed to get locales", err)
 	}
 
+	routes, err := buildRoutesMap(ctx, h.queries, id)
+	if err != nil {
+		return err
+	}
+
+	var homePage *PageResponse
+	rootPage, err := h.queries.GetRootPageBySite(ctx, id)
+	if err == nil {
+		slugs, slugErr := h.queries.GetPageSlugsByPageID(ctx, rootPage.ID)
+		if slugErr != nil {
+			return InternalError(c, "failed to get home page slugs", slugErr)
+		}
+
+		localeMap := make(map[int64]db.SiteLocale, len(locales))
+		for _, l := range locales {
+			localeMap[l.ID] = l
+		}
+
+		resp := toPageResponse(rootPage, toSlugResponses(slugs, localeMap))
+		homePage = &resp
+	}
+
 	return c.JSON(http.StatusOK, SiteResponse{
-		ID:      site.ID,
-		Name:    site.Name,
-		Domain:  site.Domain,
-		Options: site.Options,
-		Locales: toLocaleResponses(locales),
+		ID:       site.ID,
+		Name:     site.Name,
+		Domain:   site.Domain,
+		Options:  site.Options,
+		Locales:  toLocaleResponses(locales),
+		Routes:   routes,
+		HomePage: homePage,
 	})
+}
+
+func buildRoutesMap(ctx context.Context, q *db.Queries, siteID int64) (map[string][]RouteEntry, error) {
+	routes := make(map[string][]RouteEntry)
+
+	pageRoutes, err := q.GetPageRoutes(ctx, siteID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get page routes: %w", err)
+	}
+	for _, r := range pageRoutes {
+		path := buildRoutePath(r.LocaleCode, r.IsDefault, r.Path)
+		routes[r.LocaleCode] = append(routes[r.LocaleCode], RouteEntry{
+			Path:   path,
+			PageID: &r.PageID,
+		})
+	}
+
+	blogRoutes, err := q.GetBlogRoutes(ctx, siteID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get blog routes: %w", err)
+	}
+	for _, r := range blogRoutes {
+		path := buildRoutePath(r.LocaleCode, r.IsDefault, r.Path)
+		routes[r.LocaleCode] = append(routes[r.LocaleCode], RouteEntry{
+			Path:   path,
+			BlogID: &r.BlogID,
+		})
+	}
+
+	postRoutes, err := q.GetPostRoutes(ctx, siteID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get post routes: %w", err)
+	}
+	for _, r := range postRoutes {
+		path := buildRoutePath(r.LocaleCode, r.IsDefault, r.Path)
+		routes[r.LocaleCode] = append(routes[r.LocaleCode], RouteEntry{
+			Path:   path,
+			PageID: &r.PageID,
+		})
+	}
+
+	return routes, nil
 }
 
 func (h *SiteHandler) List(c *echo.Context) error {

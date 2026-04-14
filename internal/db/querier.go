@@ -12,7 +12,7 @@ type Querier interface {
 	CountSites(ctx context.Context) (int64, error)
 	CreatePage(ctx context.Context, arg CreatePageParams) (Page, error)
 	CreatePageSlug(ctx context.Context, arg CreatePageSlugParams) (PageSlug, error)
-	CreateSite(ctx context.Context, arg CreateSiteParams) (CreateSiteRow, error)
+	CreateSite(ctx context.Context, arg CreateSiteParams) (Site, error)
 	CreateSiteLocale(ctx context.Context, arg CreateSiteLocaleParams) (SiteLocale, error)
 	DeletePage(ctx context.Context, arg DeletePageParams) error
 	DeletePageSlugsByPageID(ctx context.Context, pageID int64) error
@@ -25,14 +25,15 @@ type Querier interface {
 	GetPageRoutes(ctx context.Context, siteID int64) ([]GetPageRoutesRow, error)
 	GetPageSlugsByPageID(ctx context.Context, pageID int64) ([]PageSlug, error)
 	GetPostRoutes(ctx context.Context, siteID int64) ([]GetPostRoutesRow, error)
-	GetSiteByDomain(ctx context.Context, domain string) (GetSiteByDomainRow, error)
-	GetSiteByID(ctx context.Context, id int64) (GetSiteByIDRow, error)
+	GetRootPageBySite(ctx context.Context, siteID int64) (Page, error)
+	GetSiteByDomain(ctx context.Context, domain string) (Site, error)
+	GetSiteByID(ctx context.Context, id int64) (Site, error)
 	GetSiteLocaleByCodeAndSite(ctx context.Context, arg GetSiteLocaleByCodeAndSiteParams) (SiteLocale, error)
 	GetSiteLocaleByID(ctx context.Context, id int64) (SiteLocale, error)
 	ListSiteLocales(ctx context.Context, siteID int64) ([]SiteLocale, error)
-	ListSites(ctx context.Context, arg ListSitesParams) ([]ListSitesRow, error)
+	ListSites(ctx context.Context, arg ListSitesParams) ([]Site, error)
 	UpdatePage(ctx context.Context, arg UpdatePageParams) (Page, error)
-	UpdateSite(ctx context.Context, arg UpdateSiteParams) (UpdateSiteRow, error)
+	UpdateSite(ctx context.Context, arg UpdateSiteParams) (Site, error)
 }
 
 var _ Querier = (*Queries)(nil)

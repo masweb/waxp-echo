@@ -334,6 +334,33 @@ func (q *Queries) GetPostRoutes(ctx context.Context, siteID int64) ([]GetPostRou
 	return items, nil
 }
 
+const getRootPageBySite = `-- name: GetRootPageBySite :one
+SELECT p.id, p.site_id, p.blog_id, p.parent_id, p.type, p.layout, p.published_at, p.created_at, p.updated_at
+FROM pages p
+JOIN page_slugs ps ON ps.page_id = p.id
+JOIN site_locales sl ON sl.id = ps.locale_id
+WHERE p.site_id = $1 AND p.type = 'page' AND p.parent_id IS NULL
+  AND sl.is_default = true AND ps.slug = ''
+LIMIT 1
+`
+
+func (q *Queries) GetRootPageBySite(ctx context.Context, siteID int64) (Page, error) {
+	row := q.db.QueryRow(ctx, getRootPageBySite, siteID)
+	var i Page
+	err := row.Scan(
+		&i.ID,
+		&i.SiteID,
+		&i.BlogID,
+		&i.ParentID,
+		&i.Type,
+		&i.Layout,
+		&i.PublishedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const updatePage = `-- name: UpdatePage :one
 UPDATE pages
 SET parent_id = $1, layout = $2, published_at = $3, updated_at = NOW()

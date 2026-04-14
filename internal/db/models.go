@@ -57,9 +57,9 @@ type Site struct {
 	ID        int64              `json:"id"`
 	Name      string             `json:"name"`
 	Domain    string             `json:"domain"`
+	Options   []byte             `json:"options"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
-	Options   []byte             `json:"options"`
 }
 
 type SiteLocale struct {

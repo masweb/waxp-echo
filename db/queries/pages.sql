@@ -35,6 +35,15 @@ SELECT id, site_id, created_at, updated_at
 FROM blogs
 WHERE id = $1 AND site_id = $2;
 
+-- name: GetRootPageBySite :one
+SELECT p.id, p.site_id, p.blog_id, p.parent_id, p.type, p.layout, p.published_at, p.created_at, p.updated_at
+FROM pages p
+JOIN page_slugs ps ON ps.page_id = p.id
+JOIN site_locales sl ON sl.id = ps.locale_id
+WHERE p.site_id = $1 AND p.type = 'page' AND p.parent_id IS NULL
+  AND sl.is_default = true AND ps.slug = ''
+LIMIT 1;
+
 -- name: GetPageRoutes :many
 WITH RECURSIVE page_tree AS (
     SELECT p.id, ps.locale_id, sl.code, sl.is_default, ps.slug::TEXT AS path

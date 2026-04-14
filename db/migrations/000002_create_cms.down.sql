@@ -1,4 +1,0 @@
-DROP TABLE IF EXISTS pages;
-DROP TABLE IF EXISTS shared_blocks;
-DROP TABLE IF EXISTS site_locales;
-DROP TABLE IF EXISTS sites;

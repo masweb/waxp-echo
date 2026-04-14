@@ -7,8 +7,6 @@ package db
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countSites = `-- name: CountSites :one
@@ -34,18 +32,9 @@ type CreateSiteParams struct {
 	Options []byte `json:"options"`
 }
 
-type CreateSiteRow struct {
-	ID        int64              `json:"id"`
-	Name      string             `json:"name"`
-	Domain    string             `json:"domain"`
-	Options   []byte             `json:"options"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
-}
-
-func (q *Queries) CreateSite(ctx context.Context, arg CreateSiteParams) (CreateSiteRow, error) {
+func (q *Queries) CreateSite(ctx context.Context, arg CreateSiteParams) (Site, error) {
 	row := q.db.QueryRow(ctx, createSite, arg.Name, arg.Domain, arg.Options)
-	var i CreateSiteRow
+	var i Site
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -70,18 +59,9 @@ const getSiteByDomain = `-- name: GetSiteByDomain :one
 SELECT id, name, domain, options, created_at, updated_at FROM sites WHERE domain = $1
 `
 
-type GetSiteByDomainRow struct {
-	ID        int64              `json:"id"`
-	Name      string             `json:"name"`
-	Domain    string             `json:"domain"`
-	Options   []byte             `json:"options"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
-}
-
-func (q *Queries) GetSiteByDomain(ctx context.Context, domain string) (GetSiteByDomainRow, error) {
+func (q *Queries) GetSiteByDomain(ctx context.Context, domain string) (Site, error) {
 	row := q.db.QueryRow(ctx, getSiteByDomain, domain)
-	var i GetSiteByDomainRow
+	var i Site
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -97,18 +77,9 @@ const getSiteByID = `-- name: GetSiteByID :one
 SELECT id, name, domain, options, created_at, updated_at FROM sites WHERE id = $1
 `
 
-type GetSiteByIDRow struct {
-	ID        int64              `json:"id"`
-	Name      string             `json:"name"`
-	Domain    string             `json:"domain"`
-	Options   []byte             `json:"options"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
-}
-
-func (q *Queries) GetSiteByID(ctx context.Context, id int64) (GetSiteByIDRow, error) {
+func (q *Queries) GetSiteByID(ctx context.Context, id int64) (Site, error) {
 	row := q.db.QueryRow(ctx, getSiteByID, id)
-	var i GetSiteByIDRow
+	var i Site
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -133,24 +104,15 @@ type ListSitesParams struct {
 	Limit   int32 `json:"limit"`
 }
 
-type ListSitesRow struct {
-	ID        int64              `json:"id"`
-	Name      string             `json:"name"`
-	Domain    string             `json:"domain"`
-	Options   []byte             `json:"options"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
-}
-
-func (q *Queries) ListSites(ctx context.Context, arg ListSitesParams) ([]ListSitesRow, error) {
+func (q *Queries) ListSites(ctx context.Context, arg ListSitesParams) ([]Site, error) {
 	rows, err := q.db.Query(ctx, listSites, arg.Column1, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListSitesRow
+	var items []Site
 	for rows.Next() {
-		var i ListSitesRow
+		var i Site
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -183,23 +145,14 @@ type UpdateSiteParams struct {
 	ID      int64  `json:"id"`
 }
 
-type UpdateSiteRow struct {
-	ID        int64              `json:"id"`
-	Name      string             `json:"name"`
-	Domain    string             `json:"domain"`
-	Options   []byte             `json:"options"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
-}
-
-func (q *Queries) UpdateSite(ctx context.Context, arg UpdateSiteParams) (UpdateSiteRow, error) {
+func (q *Queries) UpdateSite(ctx context.Context, arg UpdateSiteParams) (Site, error) {
 	row := q.db.QueryRow(ctx, updateSite,
 		arg.Name,
 		arg.Domain,
 		arg.Options,
 		arg.ID,
 	)
-	var i UpdateSiteRow
+	var i Site
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
