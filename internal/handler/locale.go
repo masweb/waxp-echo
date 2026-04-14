@@ -14,6 +14,11 @@ import (
 	"waxp/echo/internal/db"
 )
 
+type LocaleResponse struct {
+	Code      string `json:"code"`
+	IsDefault bool   `json:"is_default"`
+}
+
 type LocaleHandler struct {
 	queries *db.Queries
 	pool    *pgxpool.Pool
@@ -72,7 +77,6 @@ func (h *LocaleHandler) Add(c *echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, LocaleResponse{
-		ID:        locale.ID,
 		Code:      locale.Code,
 		IsDefault: locale.IsDefault,
 	})
@@ -84,10 +88,7 @@ func (h *LocaleHandler) Remove(c *echo.Context) error {
 		return ErrorJSON(c, http.StatusBadRequest, "invalid site id")
 	}
 
-	localeID, err := strconv.ParseInt(c.Param("localeId"), 10, 64)
-	if err != nil {
-		return ErrorJSON(c, http.StatusBadRequest, "invalid locale id")
-	}
+	localeCode := c.Param("localeCode")
 
 	_, err = h.queries.GetSiteByID(c.Request().Context(), siteID)
 	if err != nil {
@@ -97,7 +98,10 @@ func (h *LocaleHandler) Remove(c *echo.Context) error {
 		return InternalError(c, "failed to get site", err)
 	}
 
-	_, err = h.queries.GetSiteLocaleByID(c.Request().Context(), localeID)
+	_, err = h.queries.GetSiteLocaleByCodeAndSite(c.Request().Context(), db.GetSiteLocaleByCodeAndSiteParams{
+		Code:   localeCode,
+		SiteID: siteID,
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrorJSON(c, http.StatusNotFound, "locale not found")
@@ -105,8 +109,8 @@ func (h *LocaleHandler) Remove(c *echo.Context) error {
 		return InternalError(c, "failed to get locale", err)
 	}
 
-	err = h.queries.DeleteSiteLocale(c.Request().Context(), db.DeleteSiteLocaleParams{
-		ID:     localeID,
+	err = h.queries.DeleteSiteLocaleByCode(c.Request().Context(), db.DeleteSiteLocaleByCodeParams{
+		Code:   localeCode,
 		SiteID: siteID,
 	})
 	if err != nil {

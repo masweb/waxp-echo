@@ -48,6 +48,42 @@ func (q *Queries) DeleteSiteLocale(ctx context.Context, arg DeleteSiteLocalePara
 	return err
 }
 
+const deleteSiteLocaleByCode = `-- name: DeleteSiteLocaleByCode :exec
+DELETE FROM site_locales WHERE code = $1 AND site_id = $2
+`
+
+type DeleteSiteLocaleByCodeParams struct {
+	Code   string `json:"code"`
+	SiteID int64  `json:"site_id"`
+}
+
+func (q *Queries) DeleteSiteLocaleByCode(ctx context.Context, arg DeleteSiteLocaleByCodeParams) error {
+	_, err := q.db.Exec(ctx, deleteSiteLocaleByCode, arg.Code, arg.SiteID)
+	return err
+}
+
+const getSiteLocaleByCodeAndSite = `-- name: GetSiteLocaleByCodeAndSite :one
+SELECT id, site_id, code, is_default, created_at FROM site_locales WHERE code = $1 AND site_id = $2
+`
+
+type GetSiteLocaleByCodeAndSiteParams struct {
+	Code   string `json:"code"`
+	SiteID int64  `json:"site_id"`
+}
+
+func (q *Queries) GetSiteLocaleByCodeAndSite(ctx context.Context, arg GetSiteLocaleByCodeAndSiteParams) (SiteLocale, error) {
+	row := q.db.QueryRow(ctx, getSiteLocaleByCodeAndSite, arg.Code, arg.SiteID)
+	var i SiteLocale
+	err := row.Scan(
+		&i.ID,
+		&i.SiteID,
+		&i.Code,
+		&i.IsDefault,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getSiteLocaleByID = `-- name: GetSiteLocaleByID :one
 SELECT id, site_id, code, is_default, created_at FROM site_locales WHERE id = $1
 `

@@ -28,7 +28,7 @@ Authorization: Bearer <token>
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
 | `id` | int64 | ID del slug |
-| `locale_id` | int64 | ID del locale |
+| `locale_code` | string | Código de idioma (ISO 639-1) |
 | `slug` | string | Segmento de URL (no la ruta completa) |
 
 ### Tipos de página
@@ -79,8 +79,8 @@ POST /api/sites/:id/pages
   "layout": {},
   "published_at": "2026-04-14T10:00:00Z",
   "slugs": [
-    { "locale_id": 1, "slug": "about" },
-    { "locale_id": 2, "slug": "sobre-nosotros" }
+    { "locale_code": "es", "slug": "about" },
+    { "locale_code": "en", "slug": "sobre-nosotros" }
   ]
 }
 ```
@@ -93,8 +93,8 @@ POST /api/sites/:id/pages
   "layout": {},
   "published_at": "2026-04-14T10:00:00Z",
   "slugs": [
-    { "locale_id": 1, "slug": "mi-articulo" },
-    { "locale_id": 2, "slug": "my-article" }
+    { "locale_code": "es", "slug": "mi-articulo" },
+    { "locale_code": "en", "slug": "my-article" }
   ]
 }
 ```
@@ -106,7 +106,7 @@ POST /api/sites/:id/pages
 | `parent_id` | int64\|null | No | ID de la página padre. Mismo tipo y (para posts) mismo blog |
 | `layout` | object | No | Layout de la página. Por defecto `{}` |
 | `published_at` | string\|null | No | Fecha de publicación (ISO 8601). `null` o omitir = borrador |
-| `slugs` | array | Sí | Al menos un slug. Cada `locale_id` debe pertenecer al site |
+| `slugs` | array | Sí | Al menos un slug. Cada `locale_code` debe pertenecer al site |
 
 **Response 201:**
 ```json
@@ -119,8 +119,8 @@ POST /api/sites/:id/pages
   "layout": {},
   "published_at": "2026-04-14T10:00:00Z",
   "slugs": [
-    { "id": 1, "locale_id": 1, "slug": "about" },
-    { "id": 2, "locale_id": 2, "slug": "sobre-nosotros" }
+    { "id": 1, "locale_code": "es", "slug": "about" },
+    { "id": 2, "locale_code": "en", "slug": "sobre-nosotros" }
   ],
   "created_at": "2026-04-14T10:00:00Z",
   "updated_at": "2026-04-14T10:00:00Z"
@@ -130,7 +130,7 @@ POST /api/sites/:id/pages
 **Errors:**
 | Status | When |
 |--------|------|
-| 400 | `type` inválido, sin slugs, slug vacío, locale_id no pertenece al site, `blog_id` requerido para posts, blog no encontrado, parent_id no encontrado o tipo incompatible, página no puede ser su propio padre |
+| 400 | `type` inválido, sin slugs, slug vacío, locale_code no pertenece al site, `blog_id` requerido para posts, blog no encontrado, parent_id no encontrado o tipo incompatible, página no puede ser su propio padre |
 | 401 | Token missing, invalid or expired |
 | 404 | Site no encontrado |
 
@@ -172,8 +172,8 @@ Ver [Paginación](./pagination.md) para detalle del comportamiento.
       "layout": {},
       "published_at": "2026-04-14T10:00:00Z",
       "slugs": [
-        { "id": 1, "locale_id": 1, "slug": "about" },
-        { "id": 2, "locale_id": 2, "slug": "sobre-nosotros" }
+        { "id": 1, "locale_code": "es", "slug": "about" },
+        { "id": 2, "locale_code": "en", "slug": "sobre-nosotros" }
       ],
       "created_at": "2026-04-14T10:00:00Z",
       "updated_at": "2026-04-14T10:00:00Z"
@@ -226,8 +226,8 @@ El `type` y `blog_id` no se pueden modificar tras la creación. Solo se actualiz
   "layout": { "components": [...] },
   "published_at": "2026-04-14T12:00:00Z",
   "slugs": [
-    { "locale_id": 1, "slug": "about-us" },
-    { "locale_id": 2, "slug": "sobre-nosotros" }
+    { "locale_code": "es", "slug": "about-us" },
+    { "locale_code": "en", "slug": "sobre-nosotros" }
   ]
 }
 ```
@@ -246,7 +246,7 @@ El `type` y `blog_id` no se pueden modificar tras la creación. Solo se actualiz
 **Errors:**
 | Status | When |
 |--------|------|
-| 400 | Sin slugs, slug vacío, locale_id no pertenece al site, parent_id inválido o tipo incompatible, página no puede ser su propio padre |
+| 400 | Sin slugs, slug vacío, locale_code no pertenece al site, parent_id inválido o tipo incompatible, página no puede ser su propio padre |
 | 401 | Token missing, invalid or expired |
 | 404 | Página no encontrada |
 

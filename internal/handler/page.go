@@ -27,8 +27,8 @@ func NewPageHandler(queries *db.Queries, pool *pgxpool.Pool) *PageHandler {
 }
 
 type PageSlugInput struct {
-	LocaleID int64  `json:"locale_id"`
-	Slug     string `json:"slug"`
+	LocaleCode string `json:"locale_code"`
+	Slug       string `json:"slug"`
 }
 
 type CreatePageRequest struct {
@@ -48,9 +48,9 @@ type UpdatePageRequest struct {
 }
 
 type PageSlugResponse struct {
-	ID       int64  `json:"id"`
-	LocaleID int64  `json:"locale_id"`
-	Slug     string `json:"slug"`
+	ID         int64  `json:"id"`
+	LocaleCode string `json:"locale_code"`
+	Slug       string `json:"slug"`
 }
 
 type PageResponse struct {
@@ -167,13 +167,13 @@ func (h *PageHandler) Create(c *echo.Context) error {
 	if err != nil {
 		return InternalError(c, "failed to get site locales", err)
 	}
-	localeMap := make(map[int64]db.SiteLocale, len(siteLocales))
+	localeByCode := make(map[string]db.SiteLocale, len(siteLocales))
 	for _, l := range siteLocales {
-		localeMap[l.ID] = l
+		localeByCode[l.Code] = l
 	}
 	for _, s := range req.Slugs {
-		if _, ok := localeMap[s.LocaleID]; !ok {
-			return ErrorJSON(c, http.StatusBadRequest, fmt.Sprintf("locale_id %d does not belong to this site", s.LocaleID))
+		if _, ok := localeByCode[s.LocaleCode]; !ok {
+			return ErrorJSON(c, http.StatusBadRequest, fmt.Sprintf("locale_code '%s' does not belong to this site", s.LocaleCode))
 		}
 	}
 
@@ -197,20 +197,26 @@ func (h *PageHandler) Create(c *echo.Context) error {
 		return InternalError(c, "failed to create page", err)
 	}
 
+	localeByID := make(map[int64]db.SiteLocale, len(siteLocales))
+	for _, l := range siteLocales {
+		localeByID[l.ID] = l
+	}
+
 	var slugs []PageSlugResponse
 	for _, s := range req.Slugs {
+		loc := localeByCode[s.LocaleCode]
 		slug, err := qtx.CreatePageSlug(ctx, db.CreatePageSlugParams{
 			PageID:   page.ID,
-			LocaleID: s.LocaleID,
+			LocaleID: loc.ID,
 			Slug:     s.Slug,
 		})
 		if err != nil {
 			return InternalError(c, "failed to create page slug", err)
 		}
 		slugs = append(slugs, PageSlugResponse{
-			ID:       slug.ID,
-			LocaleID: slug.LocaleID,
-			Slug:     slug.Slug,
+			ID:         slug.ID,
+			LocaleCode: loc.Code,
+			Slug:       slug.Slug,
 		})
 	}
 
@@ -247,7 +253,16 @@ func (h *PageHandler) GetByID(c *echo.Context) error {
 		return InternalError(c, "failed to get page slugs", err)
 	}
 
-	return c.JSON(http.StatusOK, toPageResponse(page, toSlugResponses(slugs)))
+	siteLocales, err := h.queries.ListSiteLocales(ctx, siteID)
+	if err != nil {
+		return InternalError(c, "failed to get site locales", err)
+	}
+	localeMap := make(map[int64]db.SiteLocale, len(siteLocales))
+	for _, l := range siteLocales {
+		localeMap[l.ID] = l
+	}
+
+	return c.JSON(http.StatusOK, toPageResponse(page, toSlugResponses(slugs, localeMap)))
 }
 
 func (h *PageHandler) List(c *echo.Context) error {
@@ -357,12 +372,22 @@ func (h *PageHandler) List(c *echo.Context) error {
 	}
 
 	data := make([]PageResponse, 0, len(pages))
+
+	siteLocales, err := h.queries.ListSiteLocales(ctx, siteID)
+	if err != nil {
+		return InternalError(c, "failed to get site locales", err)
+	}
+	localeMap := make(map[int64]db.SiteLocale, len(siteLocales))
+	for _, l := range siteLocales {
+		localeMap[l.ID] = l
+	}
+
 	for _, p := range pages {
 		slugs, err := h.queries.GetPageSlugsByPageID(ctx, p.ID)
 		if err != nil {
 			return InternalError(c, "failed to get page slugs", err)
 		}
-		data = append(data, toPageResponse(p, toSlugResponses(slugs)))
+		data = append(data, toPageResponse(p, toSlugResponses(slugs, localeMap)))
 	}
 
 	var nextCursor *int64
@@ -439,13 +464,13 @@ func (h *PageHandler) Update(c *echo.Context) error {
 	if err != nil {
 		return InternalError(c, "failed to get site locales", err)
 	}
-	localeMap := make(map[int64]db.SiteLocale, len(siteLocales))
+	localeByCode := make(map[string]db.SiteLocale, len(siteLocales))
 	for _, l := range siteLocales {
-		localeMap[l.ID] = l
+		localeByCode[l.Code] = l
 	}
 	for _, s := range req.Slugs {
-		if _, ok := localeMap[s.LocaleID]; !ok {
-			return ErrorJSON(c, http.StatusBadRequest, fmt.Sprintf("locale_id %d does not belong to this site", s.LocaleID))
+		if _, ok := localeByCode[s.LocaleCode]; !ok {
+			return ErrorJSON(c, http.StatusBadRequest, fmt.Sprintf("locale_code '%s' does not belong to this site", s.LocaleCode))
 		}
 	}
 
@@ -500,18 +525,19 @@ func (h *PageHandler) Update(c *echo.Context) error {
 
 	var slugs []PageSlugResponse
 	for _, s := range req.Slugs {
+		loc := localeByCode[s.LocaleCode]
 		slug, err := qtx.CreatePageSlug(ctx, db.CreatePageSlugParams{
 			PageID:   pageID,
-			LocaleID: s.LocaleID,
+			LocaleID: loc.ID,
 			Slug:     s.Slug,
 		})
 		if err != nil {
 			return InternalError(c, "failed to create page slug", err)
 		}
 		slugs = append(slugs, PageSlugResponse{
-			ID:       slug.ID,
-			LocaleID: slug.LocaleID,
-			Slug:     slug.Slug,
+			ID:         slug.ID,
+			LocaleCode: loc.Code,
+			Slug:       slug.Slug,
 		})
 	}
 
@@ -649,13 +675,14 @@ func toPageResponse(p db.Page, slugs []PageSlugResponse) PageResponse {
 	}
 }
 
-func toSlugResponses(slugs []db.PageSlug) []PageSlugResponse {
+func toSlugResponses(slugs []db.PageSlug, localeMap map[int64]db.SiteLocale) []PageSlugResponse {
 	result := make([]PageSlugResponse, 0, len(slugs))
 	for _, s := range slugs {
+		loc := localeMap[s.LocaleID]
 		result = append(result, PageSlugResponse{
-			ID:       s.ID,
-			LocaleID: s.LocaleID,
-			Slug:     s.Slug,
+			ID:         s.ID,
+			LocaleCode: loc.Code,
+			Slug:       s.Slug,
 		})
 	}
 	return result

@@ -53,12 +53,13 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 
 	sites := protected.Group("/sites")
 	sites.POST("", siteHandler.Create)
+	sites.POST("/init", siteHandler.CreateWithDefaults)
 	sites.GET("", siteHandler.List)
 	sites.GET("/:id", siteHandler.GetByID)
 	sites.PUT("/:id", siteHandler.Update)
 	sites.DELETE("/:id", siteHandler.Delete)
 	sites.POST("/:id/locales", localeHandler.Add)
-	sites.DELETE("/:id/locales/:localeId", localeHandler.Remove)
+	sites.DELETE("/:id/locales/:localeCode", localeHandler.Remove)
 
 	pageHandler := handler.NewPageHandler(queries, pool)
 	sites.POST("/:id/pages", pageHandler.Create)

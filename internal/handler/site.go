@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v5"
 
@@ -41,12 +43,6 @@ type UpdateSiteRequest struct {
 	Name    string          `json:"name" validate:"required,min=1,max=255"`
 	Domain  string          `json:"domain" validate:"required,min=1,max=255"`
 	Options json.RawMessage `json:"options,omitempty"`
-}
-
-type LocaleResponse struct {
-	ID        int64  `json:"id"`
-	Code      string `json:"code"`
-	IsDefault bool   `json:"is_default"`
 }
 
 type SiteResponse struct {
@@ -130,7 +126,6 @@ func (h *SiteHandler) Create(c *echo.Context) error {
 			return InternalError(c, "failed to create locale", err)
 		}
 		locales = append(locales, LocaleResponse{
-			ID:        locale.ID,
 			Code:      locale.Code,
 			IsDefault: locale.IsDefault,
 		})
@@ -150,6 +145,159 @@ func (h *SiteHandler) Create(c *echo.Context) error {
 		Domain:  site.Domain,
 		Options: site.Options,
 		Locales: locales,
+	})
+}
+
+type DefaultPageResponse struct {
+	ID         int64  `json:"id"`
+	SiteID     int64  `json:"site_id"`
+	Type       string `json:"type"`
+	Slug       string `json:"slug"`
+	LocaleCode string `json:"locale_code"`
+}
+
+type CreateSiteWithDefaultsResponse struct {
+	ID      int64                 `json:"id"`
+	Name    string                `json:"name"`
+	Domain  string                `json:"domain"`
+	Options json.RawMessage       `json:"options"`
+	Locales []LocaleResponse      `json:"locales"`
+	Pages   []DefaultPageResponse `json:"pages"`
+}
+
+func (h *SiteHandler) CreateWithDefaults(c *echo.Context) error {
+	var req CreateSiteRequest
+	if err := c.Bind(&req); err != nil {
+		return ErrorJSON(c, http.StatusBadRequest, "invalid request body")
+	}
+
+	if req.Name == "" || req.Domain == "" {
+		return ErrorJSON(c, http.StatusBadRequest, "name and domain are required")
+	}
+
+	if len(req.Locales) == 0 {
+		return ErrorJSON(c, http.StatusBadRequest, "at least one locale is required")
+	}
+
+	defaultCount := 0
+	for _, l := range req.Locales {
+		if l.Code == "" {
+			return ErrorJSON(c, http.StatusBadRequest, "locale code is required")
+		}
+		if l.IsDefault {
+			defaultCount++
+		}
+	}
+	if defaultCount > 1 {
+		return ErrorJSON(c, http.StatusBadRequest, "only one locale can be the default")
+	}
+
+	options := req.Options
+	if options == nil {
+		options = json.RawMessage(`{}`)
+	}
+
+	ctx := c.Request().Context()
+
+	tx, err := h.pool.Begin(ctx)
+	if err != nil {
+		return InternalError(c, "failed to begin transaction", err)
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := h.queries.WithTx(tx)
+
+	site, err := qtx.CreateSite(ctx, db.CreateSiteParams{
+		Name:    req.Name,
+		Domain:  req.Domain,
+		Options: options,
+	})
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return ErrorJSON(c, http.StatusConflict, "domain already exists")
+		}
+		return InternalError(c, "failed to create site", err)
+	}
+
+	var dbLocales []db.SiteLocale
+	for _, l := range req.Locales {
+		locale, err := qtx.CreateSiteLocale(ctx, db.CreateSiteLocaleParams{
+			SiteID:    site.ID,
+			Code:      l.Code,
+			IsDefault: l.IsDefault,
+		})
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				return ErrorJSON(c, http.StatusConflict, fmt.Sprintf("locale code '%s' already exists", l.Code))
+			}
+			return InternalError(c, "failed to create locale", err)
+		}
+		dbLocales = append(dbLocales, locale)
+	}
+
+	now := time.Now().UTC()
+	publishedAt := pgtype.Timestamptz{Time: now, Valid: true}
+	layout := []byte(`{}`)
+
+	defaultPages := []struct {
+		slug string
+	}{
+		{slug: ""},
+		{slug: "404"},
+	}
+
+	var pages []DefaultPageResponse
+	for _, dp := range defaultPages {
+		page, err := qtx.CreatePage(ctx, db.CreatePageParams{
+			SiteID:      site.ID,
+			BlogID:      pgtype.Int8{},
+			ParentID:    pgtype.Int8{},
+			Type:        "page",
+			Layout:      layout,
+			PublishedAt: publishedAt,
+		})
+		if err != nil {
+			return InternalError(c, "failed to create default page", err)
+		}
+
+		for _, loc := range dbLocales {
+			_, err := qtx.CreatePageSlug(ctx, db.CreatePageSlugParams{
+				PageID:   page.ID,
+				LocaleID: loc.ID,
+				Slug:     dp.slug,
+			})
+			if err != nil {
+				return InternalError(c, "failed to create default page slug", err)
+			}
+
+			pages = append(pages, DefaultPageResponse{
+				ID:         page.ID,
+				SiteID:     site.ID,
+				Type:       "page",
+				Slug:       dp.slug,
+				LocaleCode: loc.Code,
+			})
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return InternalError(c, "failed to commit transaction", err)
+	}
+
+	localeResponses := toLocaleResponses(dbLocales)
+	if pages == nil {
+		pages = []DefaultPageResponse{}
+	}
+
+	return c.JSON(http.StatusCreated, CreateSiteWithDefaultsResponse{
+		ID:      site.ID,
+		Name:    site.Name,
+		Domain:  site.Domain,
+		Options: site.Options,
+		Locales: localeResponses,
+		Pages:   pages,
 	})
 }
 
@@ -366,7 +514,6 @@ func toLocaleResponses(locales []db.SiteLocale) []LocaleResponse {
 	result := make([]LocaleResponse, 0, len(locales))
 	for _, l := range locales {
 		result = append(result, LocaleResponse{
-			ID:        l.ID,
 			Code:      l.Code,
 			IsDefault: l.IsDefault,
 		})

@@ -66,6 +66,67 @@ POST /api/sites
 
 ---
 
+## Create Site with Defaults
+
+Crea un site con sus páginas por defecto (raíz `/` y `404`) en una sola transacción. Requiere al menos un locale.
+
+```
+POST /api/sites/init
+```
+
+**Body:**
+```json
+{
+  "name": "Mi Blog",
+  "domain": "miblog.com",
+  "locales": [
+    { "code": "es", "is_default": true },
+    { "code": "en", "is_default": false }
+  ]
+}
+```
+
+| Campo | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `name` | string | Sí | Nombre del site |
+| `domain` | string | Sí | Dominio del site (único) |
+| `locales` | array | **Sí** | Al menos un locale es requerido |
+
+**Reglas:**
+- Mismas reglas de locales que `POST /api/sites`.
+- Se crean automáticamente dos páginas publicadas:
+  - **Raíz** (`slug: ""`) — una entrada por cada locale.
+  - **404** (`slug: "404"`) — una entrada por cada locale, mismo nombre en todos los idiomas.
+- Toda la operación (site + locales + páginas + slugs) es atómica.
+
+**Response 201:**
+```json
+{
+  "id": 1,
+  "name": "Mi Blog",
+  "domain": "miblog.com",
+  "locales": [
+    { "id": 1, "code": "es", "is_default": true },
+    { "id": 2, "code": "en", "is_default": false }
+  ],
+  "pages": [
+    { "id": 1, "site_id": 1, "type": "page", "slug": "", "locale_code": "es" },
+    { "id": 1, "site_id": 1, "type": "page", "slug": "", "locale_code": "en" },
+    { "id": 2, "site_id": 1, "type": "page", "slug": "404", "locale_code": "es" },
+    { "id": 2, "site_id": 1, "type": "page", "slug": "404", "locale_code": "en" }
+  ]
+}
+```
+
+**Errors:**
+| Status | When |
+|--------|------|
+| 400 | Body inválido, name o domain vacíos, locales vacío, locale sin code, más de un is_default |
+| 401 | Token missing, invalid or expired |
+| 409 | Domain ya existe, código de locale duplicado |
+
+---
+
 ## List Sites
 
 ```
@@ -217,7 +278,7 @@ POST /api/sites/:id/locales
 ## Remove Locale from Site
 
 ```
-DELETE /api/sites/:id/locales/:localeId
+DELETE /api/sites/:id/locales/:localeCode
 ```
 
 **Response 204:** *(sin body)*

@@ -18,6 +18,7 @@ type Querier interface {
 	DeletePageSlugsByPageID(ctx context.Context, pageID int64) error
 	DeleteSite(ctx context.Context, id int64) error
 	DeleteSiteLocale(ctx context.Context, arg DeleteSiteLocaleParams) error
+	DeleteSiteLocaleByCode(ctx context.Context, arg DeleteSiteLocaleByCodeParams) error
 	GetBlogByID(ctx context.Context, arg GetBlogByIDParams) (Blog, error)
 	GetBlogRoutes(ctx context.Context, siteID int64) ([]GetBlogRoutesRow, error)
 	GetPageByID(ctx context.Context, arg GetPageByIDParams) (Page, error)
@@ -26,6 +27,7 @@ type Querier interface {
 	GetPostRoutes(ctx context.Context, siteID int64) ([]GetPostRoutesRow, error)
 	GetSiteByDomain(ctx context.Context, domain string) (GetSiteByDomainRow, error)
 	GetSiteByID(ctx context.Context, id int64) (GetSiteByIDRow, error)
+	GetSiteLocaleByCodeAndSite(ctx context.Context, arg GetSiteLocaleByCodeAndSiteParams) (SiteLocale, error)
 	GetSiteLocaleByID(ctx context.Context, id int64) (SiteLocale, error)
 	ListSiteLocales(ctx context.Context, siteID int64) ([]SiteLocale, error)
 	ListSites(ctx context.Context, arg ListSitesParams) ([]ListSitesRow, error)

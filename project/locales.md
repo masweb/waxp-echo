@@ -10,8 +10,6 @@ Authorization: Bearer <token>
 
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
-| `id` | int64 | ID del locale |
-| `site_id` | int64 | ID del site al que pertenece |
 | `code` | string | Código de idioma (ISO 639-1), ej: `"es"`, `"en"`, `"ca"` |
 | `is_default` | boolean | Indica si es el idioma por defecto del site |
 
@@ -47,7 +45,6 @@ POST /api/sites/:id/locales
 **Response 201:**
 ```json
 {
-  "id": 3,
   "code": "ca",
   "is_default": false
 }
@@ -68,7 +65,7 @@ POST /api/sites/:id/locales
 Elimina un idioma de un site.
 
 ```
-DELETE /api/sites/:id/locales/:localeId
+DELETE /api/sites/:id/locales/:localeCode
 ```
 
 **Response 204:** *(sin body)*
@@ -78,6 +75,6 @@ DELETE /api/sites/:id/locales/:localeId
 **Errors:**
 | Status | When |
 |--------|------|
-| 400 | Site ID o locale ID inválido |
+| 400 | Site ID inválido |
 | 401 | Token missing, invalid or expired |
 | 404 | Site no encontrado, locale no encontrado |
