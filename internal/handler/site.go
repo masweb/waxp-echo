@@ -47,13 +47,12 @@ type UpdateSiteRequest struct {
 }
 
 type SiteResponse struct {
-	ID       int64                   `json:"id"`
-	Name     string                  `json:"name"`
-	Domain   string                  `json:"domain"`
-	Options  json.RawMessage         `json:"options"`
-	Locales  []LocaleResponse        `json:"locales"`
-	Routes   map[string][]RouteEntry `json:"routes"`
-	HomePage *PageResponse           `json:"home_page,omitempty"`
+	ID      int64                   `json:"id"`
+	Name    string                  `json:"name"`
+	Domain  string                  `json:"domain"`
+	Options json.RawMessage         `json:"options"`
+	Locales []LocaleResponse        `json:"locales"`
+	Routes  map[string][]RouteEntry `json:"routes"`
 }
 
 type PaginatedResponse[T any] struct {
@@ -191,6 +190,7 @@ func (h *SiteHandler) CreateWithDefaults(c *echo.Context) error {
 			defaultCount++
 		}
 	}
+
 	if defaultCount > 1 {
 		return ErrorJSON(c, http.StatusBadRequest, "only one locale can be the default")
 	}
@@ -242,17 +242,45 @@ func (h *SiteHandler) CreateWithDefaults(c *echo.Context) error {
 
 	now := time.Now().UTC()
 	publishedAt := pgtype.Timestamptz{Time: now, Valid: true}
-	layout := []byte(`{}`)
+
+	_, err = qtx.CreateSectionCounter(ctx, site.ID)
+	if err != nil {
+		return InternalError(c, "failed to create section counter", err)
+	}
+
+	makeLayout := func() ([]byte, error) {
+		sectionIDs := make([]int64, 4)
+		for i := range sectionIDs {
+			id, err := qtx.GetNextSectionID(ctx, site.ID)
+			if err != nil {
+				return nil, err
+			}
+			sectionIDs[i] = id
+		}
+		defaultLayout := []map[string]interface{}{
+			{"id": sectionIDs[0], "mobile": map[string]int{"cols": 8, "rows": 12}, "tablet": map[string]int{"cols": 12, "rows": 16}, "desktop": map[string]int{"cols": 24, "rows": 20}, "blocks": []interface{}{}},
+			{"id": sectionIDs[1], "mobile": map[string]int{"cols": 8, "rows": 12}, "tablet": map[string]int{"cols": 12, "rows": 16}, "desktop": map[string]int{"cols": 24, "rows": 20}, "blocks": []interface{}{}},
+			{"id": sectionIDs[2], "mobile": map[string]int{"cols": 8, "rows": 12}, "tablet": map[string]int{"cols": 12, "rows": 16}, "desktop": map[string]int{"cols": 24, "rows": 20}, "blocks": []interface{}{}},
+			{"id": sectionIDs[3], "mobile": map[string]int{"cols": 8, "rows": 12}, "tablet": map[string]int{"cols": 12, "rows": 16}, "desktop": map[string]int{"cols": 24, "rows": 20}, "blocks": []interface{}{}},
+		}
+		return json.Marshal(defaultLayout)
+	}
 
 	defaultPages := []struct {
-		slug string
+		slug  string
+		title string
 	}{
-		{slug: ""},
-		{slug: "404"},
+		{slug: "", title: "Home"},
+		{slug: "404", title: "404 page"},
 	}
 
 	var pages []DefaultPageResponse
 	for _, dp := range defaultPages {
+		layout, err := makeLayout()
+		if err != nil {
+			return InternalError(c, "failed to generate section id", err)
+		}
+
 		page, err := qtx.CreatePage(ctx, db.CreatePageParams{
 			SiteID:      site.ID,
 			BlogID:      pgtype.Int8{},
@@ -273,6 +301,16 @@ func (h *SiteHandler) CreateWithDefaults(c *echo.Context) error {
 			})
 			if err != nil {
 				return InternalError(c, "failed to create default page slug", err)
+			}
+
+			_, err = qtx.CreatePageSeo(ctx, db.CreatePageSeoParams{
+				PageID:      page.ID,
+				LocaleID:    loc.ID,
+				Title:       dp.title,
+				Description: pgtype.Text{},
+			})
+			if err != nil {
+				return InternalError(c, "failed to create default page seo", err)
 			}
 
 			pages = append(pages, DefaultPageResponse{
@@ -330,31 +368,13 @@ func (h *SiteHandler) GetByID(c *echo.Context) error {
 		return err
 	}
 
-	var homePage *PageResponse
-	rootPage, err := h.queries.GetRootPageBySite(ctx, id)
-	if err == nil {
-		slugs, slugErr := h.queries.GetPageSlugsByPageID(ctx, rootPage.ID)
-		if slugErr != nil {
-			return InternalError(c, "failed to get home page slugs", slugErr)
-		}
-
-		localeMap := make(map[int64]db.SiteLocale, len(locales))
-		for _, l := range locales {
-			localeMap[l.ID] = l
-		}
-
-		resp := toPageResponse(rootPage, toSlugResponses(slugs, localeMap))
-		homePage = &resp
-	}
-
 	return c.JSON(http.StatusOK, SiteResponse{
-		ID:       site.ID,
-		Name:     site.Name,
-		Domain:   site.Domain,
-		Options:  site.Options,
-		Locales:  toLocaleResponses(locales),
-		Routes:   routes,
-		HomePage: homePage,
+		ID:      site.ID,
+		Name:    site.Name,
+		Domain:  site.Domain,
+		Options: site.Options,
+		Locales: toLocaleResponses(locales),
+		Routes:  routes,
 	})
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -31,12 +32,19 @@ type PageSlugInput struct {
 	Slug       string `json:"slug"`
 }
 
+type PageSeoInput struct {
+	LocaleCode  string `json:"locale_code"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
 type CreatePageRequest struct {
 	Type        string          `json:"type"`
 	BlogID      *int64          `json:"blog_id"`
 	ParentID    *int64          `json:"parent_id"`
 	Layout      json.RawMessage `json:"layout"`
 	PublishedAt *string         `json:"published_at"`
+	Seo         []PageSeoInput  `json:"seo"`
 	Slugs       []PageSlugInput `json:"slugs"`
 }
 
@@ -44,6 +52,7 @@ type UpdatePageRequest struct {
 	ParentID    *int64          `json:"parent_id"`
 	Layout      json.RawMessage `json:"layout"`
 	PublishedAt *string         `json:"published_at"`
+	Seo         []PageSeoInput  `json:"seo"`
 	Slugs       []PageSlugInput `json:"slugs"`
 }
 
@@ -51,6 +60,13 @@ type PageSlugResponse struct {
 	ID         int64  `json:"id"`
 	LocaleCode string `json:"locale_code"`
 	Slug       string `json:"slug"`
+}
+
+type PageSeoResponse struct {
+	ID          int64  `json:"id"`
+	LocaleCode  string `json:"locale_code"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
 }
 
 type PageResponse struct {
@@ -61,6 +77,7 @@ type PageResponse struct {
 	Type        string             `json:"type"`
 	Layout      json.RawMessage    `json:"layout"`
 	PublishedAt *string            `json:"published_at"`
+	Seo         []PageSeoResponse  `json:"seo"`
 	Slugs       []PageSlugResponse `json:"slugs"`
 	CreatedAt   string             `json:"created_at"`
 	UpdatedAt   string             `json:"updated_at"`
@@ -95,15 +112,41 @@ func (h *PageHandler) Create(c *echo.Context) error {
 		return ErrorJSON(c, http.StatusBadRequest, "at least one slug is required")
 	}
 
-	for _, s := range req.Slugs {
-		if s.Slug == "" {
-			return ErrorJSON(c, http.StatusBadRequest, "slug is required for each locale")
+	for i := range req.Slugs {
+		req.Slugs[i].Slug = strings.Trim(strings.TrimSpace(req.Slugs[i].Slug), "/")
+		if req.Slugs[i].Slug == "" && req.ParentID != nil {
+			return ErrorJSON(c, http.StatusBadRequest, "slug cannot be empty for child pages")
 		}
 	}
 
+	for _, s := range req.Seo {
+		if s.LocaleCode == "" {
+			return ErrorJSON(c, http.StatusBadRequest, "locale_code is required for each seo entry")
+		}
+		if s.Title == "" {
+			return ErrorJSON(c, http.StatusBadRequest, "title is required for each seo entry")
+		}
+	}
+
+	ctx := c.Request().Context()
+
 	layout := req.Layout
-	if layout == nil {
-		layout = json.RawMessage(`{}`)
+	if layout == nil || string(layout) == "{}" || string(layout) == "null" {
+		sectionIDs := make([]int64, 4)
+		for i := range sectionIDs {
+			id, err := h.queries.GetNextSectionID(ctx, siteID)
+			if err != nil {
+				return InternalError(c, "failed to generate section id", err)
+			}
+			sectionIDs[i] = id
+		}
+		defaultLayout := []map[string]interface{}{
+			{"id": sectionIDs[0], "mobile": map[string]int{"cols": 8, "rows": 12}, "tablet": map[string]int{"cols": 12, "rows": 16}, "desktop": map[string]int{"cols": 24, "rows": 20}, "blocks": []interface{}{}},
+			{"id": sectionIDs[1], "mobile": map[string]int{"cols": 8, "rows": 12}, "tablet": map[string]int{"cols": 12, "rows": 16}, "desktop": map[string]int{"cols": 24, "rows": 20}, "blocks": []interface{}{}},
+			{"id": sectionIDs[2], "mobile": map[string]int{"cols": 8, "rows": 12}, "tablet": map[string]int{"cols": 12, "rows": 16}, "desktop": map[string]int{"cols": 24, "rows": 20}, "blocks": []interface{}{}},
+			{"id": sectionIDs[3], "mobile": map[string]int{"cols": 8, "rows": 12}, "tablet": map[string]int{"cols": 12, "rows": 16}, "desktop": map[string]int{"cols": 24, "rows": 20}, "blocks": []interface{}{}},
+		}
+		layout, _ = json.Marshal(defaultLayout)
 	}
 
 	var publishedAt pgtype.Timestamptz
@@ -114,8 +157,6 @@ func (h *PageHandler) Create(c *echo.Context) error {
 		}
 		publishedAt = pgtype.Timestamptz{Time: t, Valid: true}
 	}
-
-	ctx := c.Request().Context()
 
 	// Verify site exists
 	_, err = h.queries.GetSiteByID(ctx, siteID)
@@ -176,6 +217,11 @@ func (h *PageHandler) Create(c *echo.Context) error {
 			return ErrorJSON(c, http.StatusBadRequest, fmt.Sprintf("locale_code '%s' does not belong to this site", s.LocaleCode))
 		}
 	}
+	for _, s := range req.Seo {
+		if _, ok := localeByCode[s.LocaleCode]; !ok {
+			return ErrorJSON(c, http.StatusBadRequest, fmt.Sprintf("locale_code '%s' does not belong to this site", s.LocaleCode))
+		}
+	}
 
 	tx, err := h.pool.Begin(ctx)
 	if err != nil {
@@ -220,11 +266,35 @@ func (h *PageHandler) Create(c *echo.Context) error {
 		})
 	}
 
+	var seo []PageSeoResponse
+	for _, s := range req.Seo {
+		loc := localeByCode[s.LocaleCode]
+		var desc pgtype.Text
+		if s.Description != "" {
+			desc = pgtype.Text{String: s.Description, Valid: true}
+		}
+		row, err := qtx.CreatePageSeo(ctx, db.CreatePageSeoParams{
+			PageID:      page.ID,
+			LocaleID:    loc.ID,
+			Title:       s.Title,
+			Description: desc,
+		})
+		if err != nil {
+			return InternalError(c, "failed to create page seo", err)
+		}
+		seo = append(seo, PageSeoResponse{
+			ID:          row.ID,
+			LocaleCode:  loc.Code,
+			Title:       row.Title,
+			Description: row.Description.String,
+		})
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return InternalError(c, "failed to commit transaction", err)
 	}
 
-	return c.JSON(http.StatusCreated, toPageResponse(page, slugs))
+	return c.JSON(http.StatusCreated, toPageResponse(page, slugs, seo))
 }
 
 func (h *PageHandler) GetByID(c *echo.Context) error {
@@ -253,6 +323,11 @@ func (h *PageHandler) GetByID(c *echo.Context) error {
 		return InternalError(c, "failed to get page slugs", err)
 	}
 
+	seoRows, err := h.queries.GetPageSeoByPageID(ctx, pageID)
+	if err != nil {
+		return InternalError(c, "failed to get page seo", err)
+	}
+
 	siteLocales, err := h.queries.ListSiteLocales(ctx, siteID)
 	if err != nil {
 		return InternalError(c, "failed to get site locales", err)
@@ -262,7 +337,7 @@ func (h *PageHandler) GetByID(c *echo.Context) error {
 		localeMap[l.ID] = l
 	}
 
-	return c.JSON(http.StatusOK, toPageResponse(page, toSlugResponses(slugs, localeMap)))
+	return c.JSON(http.StatusOK, toPageResponse(page, toSlugResponses(slugs, localeMap), toSeoResponses(seoRows, localeMap)))
 }
 
 func (h *PageHandler) List(c *echo.Context) error {
@@ -322,16 +397,14 @@ func (h *PageHandler) List(c *echo.Context) error {
 
 	result := builder.Build(cursor)
 
-	// Add site_id filter
-	siteClause := "site_id = $1"
 	var whereClause string
 	var args []any
 	if result.WhereClause != "" {
-		whereClause = " WHERE site_id = $1 AND " + result.WhereClause[len(" WHERE "):]
-		whereClause = shiftParamIndices(whereClause, 1)
+		filterClause := shiftParamIndices(result.WhereClause[len(" WHERE "):], 1)
+		whereClause = " WHERE site_id = $1 AND " + filterClause
 		args = append([]any{siteID}, result.Args...)
 	} else {
-		whereClause = " WHERE " + siteClause
+		whereClause = " WHERE site_id = $1"
 		args = []any{siteID}
 	}
 
@@ -387,7 +460,11 @@ func (h *PageHandler) List(c *echo.Context) error {
 		if err != nil {
 			return InternalError(c, "failed to get page slugs", err)
 		}
-		data = append(data, toPageResponse(p, toSlugResponses(slugs, localeMap)))
+		seoRows, err := h.queries.GetPageSeoByPageID(ctx, p.ID)
+		if err != nil {
+			return InternalError(c, "failed to get page seo", err)
+		}
+		data = append(data, toPageResponse(p, toSlugResponses(slugs, localeMap), toSeoResponses(seoRows, localeMap)))
 	}
 
 	var nextCursor *int64
@@ -428,15 +505,33 @@ func (h *PageHandler) Update(c *echo.Context) error {
 		return ErrorJSON(c, http.StatusBadRequest, "at least one slug is required")
 	}
 
-	for _, s := range req.Slugs {
-		if s.Slug == "" {
-			return ErrorJSON(c, http.StatusBadRequest, "slug is required for each locale")
+	for i := range req.Slugs {
+		req.Slugs[i].Slug = strings.Trim(strings.TrimSpace(req.Slugs[i].Slug), "/")
+	}
+
+	for _, s := range req.Seo {
+		if s.LocaleCode == "" {
+			return ErrorJSON(c, http.StatusBadRequest, "locale_code is required for each seo entry")
 		}
+		if s.Title == "" {
+			return ErrorJSON(c, http.StatusBadRequest, "title is required for each seo entry")
+		}
+	}
+
+	ctx := c.Request().Context()
+
+	// Get existing page to know its type, blog_id and layout
+	existing, err := h.queries.GetPageByID(ctx, db.GetPageByIDParams{ID: pageID, SiteID: siteID})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrorJSON(c, http.StatusNotFound, "page not found")
+		}
+		return InternalError(c, "failed to get page", err)
 	}
 
 	layout := req.Layout
 	if layout == nil {
-		layout = json.RawMessage(`{}`)
+		layout = existing.Layout
 	}
 
 	var publishedAt pgtype.Timestamptz
@@ -446,17 +541,8 @@ func (h *PageHandler) Update(c *echo.Context) error {
 			return ErrorJSON(c, http.StatusBadRequest, "invalid published_at format, use ISO 8601")
 		}
 		publishedAt = pgtype.Timestamptz{Time: t, Valid: true}
-	}
-
-	ctx := c.Request().Context()
-
-	// Get existing page to know its type and blog_id
-	existing, err := h.queries.GetPageByID(ctx, db.GetPageByIDParams{ID: pageID, SiteID: siteID})
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrorJSON(c, http.StatusNotFound, "page not found")
-		}
-		return InternalError(c, "failed to get page", err)
+	} else {
+		publishedAt = existing.PublishedAt
 	}
 
 	// Validate locales
@@ -469,6 +555,11 @@ func (h *PageHandler) Update(c *echo.Context) error {
 		localeByCode[l.Code] = l
 	}
 	for _, s := range req.Slugs {
+		if _, ok := localeByCode[s.LocaleCode]; !ok {
+			return ErrorJSON(c, http.StatusBadRequest, fmt.Sprintf("locale_code '%s' does not belong to this site", s.LocaleCode))
+		}
+	}
+	for _, s := range req.Seo {
 		if _, ok := localeByCode[s.LocaleCode]; !ok {
 			return ErrorJSON(c, http.StatusBadRequest, fmt.Sprintf("locale_code '%s' does not belong to this site", s.LocaleCode))
 		}
@@ -541,11 +632,40 @@ func (h *PageHandler) Update(c *echo.Context) error {
 		})
 	}
 
+	// Replace seo
+	if err := qtx.DeletePageSeoByPageID(ctx, pageID); err != nil {
+		return InternalError(c, "failed to delete old seo", err)
+	}
+
+	var seo []PageSeoResponse
+	for _, s := range req.Seo {
+		loc := localeByCode[s.LocaleCode]
+		var desc pgtype.Text
+		if s.Description != "" {
+			desc = pgtype.Text{String: s.Description, Valid: true}
+		}
+		row, err := qtx.CreatePageSeo(ctx, db.CreatePageSeoParams{
+			PageID:      pageID,
+			LocaleID:    loc.ID,
+			Title:       s.Title,
+			Description: desc,
+		})
+		if err != nil {
+			return InternalError(c, "failed to create page seo", err)
+		}
+		seo = append(seo, PageSeoResponse{
+			ID:          row.ID,
+			LocaleCode:  loc.Code,
+			Title:       row.Title,
+			Description: row.Description.String,
+		})
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return InternalError(c, "failed to commit transaction", err)
 	}
 
-	return c.JSON(http.StatusOK, toPageResponse(page, slugs))
+	return c.JSON(http.StatusOK, toPageResponse(page, slugs, seo))
 }
 
 func (h *PageHandler) Delete(c *echo.Context) error {
@@ -601,13 +721,19 @@ func (h *PageHandler) Routes(c *echo.Context) error {
 }
 
 func buildRoutePath(localeCode string, isDefault bool, slugPath string) string {
+	if slugPath == "" {
+		if isDefault {
+			return "/"
+		}
+		return "/" + localeCode
+	}
 	if isDefault {
 		return "/" + slugPath
 	}
 	return "/" + localeCode + "/" + slugPath
 }
 
-func toPageResponse(p db.Page, slugs []PageSlugResponse) PageResponse {
+func toPageResponse(p db.Page, slugs []PageSlugResponse, seo []PageSeoResponse) PageResponse {
 	var blogID *int64
 	if p.BlogID.Valid {
 		blogID = &p.BlogID.Int64
@@ -632,6 +758,7 @@ func toPageResponse(p db.Page, slugs []PageSlugResponse) PageResponse {
 		Type:        p.Type,
 		Layout:      p.Layout,
 		PublishedAt: publishedAt,
+		Seo:         seo,
 		Slugs:       slugs,
 		CreatedAt:   p.CreatedAt.Time.Format(time.RFC3339),
 		UpdatedAt:   p.UpdatedAt.Time.Format(time.RFC3339),
@@ -646,6 +773,20 @@ func toSlugResponses(slugs []db.PageSlug, localeMap map[int64]db.SiteLocale) []P
 			ID:         s.ID,
 			LocaleCode: loc.Code,
 			Slug:       s.Slug,
+		})
+	}
+	return result
+}
+
+func toSeoResponses(seoRows []db.GetPageSeoByPageIDRow, localeMap map[int64]db.SiteLocale) []PageSeoResponse {
+	result := make([]PageSeoResponse, 0, len(seoRows))
+	for _, s := range seoRows {
+		loc := localeMap[s.LocaleID]
+		result = append(result, PageSeoResponse{
+			ID:          s.ID,
+			LocaleCode:  loc.Code,
+			Title:       s.Title,
+			Description: s.Description.String,
 		})
 	}
 	return result

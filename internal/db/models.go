@@ -46,11 +46,25 @@ type Page struct {
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
+type PageSeo struct {
+	ID          int64              `json:"id"`
+	PageID      int64              `json:"page_id"`
+	LocaleID    int64              `json:"locale_id"`
+	Title       string             `json:"title"`
+	Description pgtype.Text        `json:"description"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type PageSlug struct {
 	ID       int64  `json:"id"`
 	PageID   int64  `json:"page_id"`
 	LocaleID int64  `json:"locale_id"`
 	Slug     string `json:"slug"`
+}
+
+type SectionCounter struct {
+	SiteID       int64 `json:"site_id"`
+	CurrentValue int64 `json:"current_value"`
 }
 
 type Site struct {

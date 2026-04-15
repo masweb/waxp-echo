@@ -52,8 +52,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	protected.GET("/me", authHandler.Me)
 
 	sites := protected.Group("/sites")
-	sites.POST("", siteHandler.Create)
-	sites.POST("/init", siteHandler.CreateWithDefaults)
+	sites.POST("", siteHandler.CreateWithDefaults)
 	sites.GET("", siteHandler.List)
 	sites.GET("/:id", siteHandler.GetByID)
 	sites.PUT("/:id", siteHandler.Update)
@@ -62,12 +61,14 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	sites.DELETE("/:id/locales/:localeCode", localeHandler.Remove)
 
 	pageHandler := handler.NewPageHandler(queries, pool)
+	sectionHandler := handler.NewSectionHandler(queries)
 	sites.POST("/:id/pages", pageHandler.Create)
 	sites.GET("/:id/pages", pageHandler.List)
 	sites.GET("/:id/pages/:pageId", pageHandler.GetByID)
 	sites.PUT("/:id/pages/:pageId", pageHandler.Update)
 	sites.DELETE("/:id/pages/:pageId", pageHandler.Delete)
 	sites.GET("/:id/routes", pageHandler.Routes)
+	sites.POST("/:id/sections/next-id", sectionHandler.GetNextSectionID)
 
 	return &Server{
 		Echo:   e,

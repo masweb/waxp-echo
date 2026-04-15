@@ -50,6 +50,45 @@ func (q *Queries) CreatePage(ctx context.Context, arg CreatePageParams) (Page, e
 	return i, err
 }
 
+const createPageSeo = `-- name: CreatePageSeo :one
+INSERT INTO page_seo (page_id, locale_id, title, description)
+VALUES ($1, $2, $3, $4)
+RETURNING id, page_id, locale_id, title, description
+`
+
+type CreatePageSeoParams struct {
+	PageID      int64       `json:"page_id"`
+	LocaleID    int64       `json:"locale_id"`
+	Title       string      `json:"title"`
+	Description pgtype.Text `json:"description"`
+}
+
+type CreatePageSeoRow struct {
+	ID          int64       `json:"id"`
+	PageID      int64       `json:"page_id"`
+	LocaleID    int64       `json:"locale_id"`
+	Title       string      `json:"title"`
+	Description pgtype.Text `json:"description"`
+}
+
+func (q *Queries) CreatePageSeo(ctx context.Context, arg CreatePageSeoParams) (CreatePageSeoRow, error) {
+	row := q.db.QueryRow(ctx, createPageSeo,
+		arg.PageID,
+		arg.LocaleID,
+		arg.Title,
+		arg.Description,
+	)
+	var i CreatePageSeoRow
+	err := row.Scan(
+		&i.ID,
+		&i.PageID,
+		&i.LocaleID,
+		&i.Title,
+		&i.Description,
+	)
+	return i, err
+}
+
 const createPageSlug = `-- name: CreatePageSlug :one
 INSERT INTO page_slugs (page_id, locale_id, slug)
 VALUES ($1, $2, $3)
@@ -85,6 +124,15 @@ type DeletePageParams struct {
 
 func (q *Queries) DeletePage(ctx context.Context, arg DeletePageParams) error {
 	_, err := q.db.Exec(ctx, deletePage, arg.ID, arg.SiteID)
+	return err
+}
+
+const deletePageSeoByPageID = `-- name: DeletePageSeoByPageID :exec
+DELETE FROM page_seo WHERE page_id = $1
+`
+
+func (q *Queries) DeletePageSeoByPageID(ctx context.Context, pageID int64) error {
+	_, err := q.db.Exec(ctx, deletePageSeoByPageID, pageID)
 	return err
 }
 
@@ -199,7 +247,7 @@ WITH RECURSIVE page_tree AS (
       AND p.published_at IS NOT NULL
   UNION ALL
     SELECT c.id, cs.locale_id, sl.code, sl.is_default,
-           pt.path || '/' || cs.slug
+           CASE WHEN pt.path = '' THEN cs.slug ELSE pt.path || '/' || cs.slug END
     FROM pages c
     JOIN page_slugs cs ON cs.page_id = c.id
     JOIN site_locales sl ON sl.id = cs.locale_id
@@ -233,6 +281,46 @@ func (q *Queries) GetPageRoutes(ctx context.Context, siteID int64) ([]GetPageRou
 			&i.LocaleCode,
 			&i.IsDefault,
 			&i.Path,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPageSeoByPageID = `-- name: GetPageSeoByPageID :many
+SELECT id, page_id, locale_id, title, description
+FROM page_seo
+WHERE page_id = $1
+`
+
+type GetPageSeoByPageIDRow struct {
+	ID          int64       `json:"id"`
+	PageID      int64       `json:"page_id"`
+	LocaleID    int64       `json:"locale_id"`
+	Title       string      `json:"title"`
+	Description pgtype.Text `json:"description"`
+}
+
+func (q *Queries) GetPageSeoByPageID(ctx context.Context, pageID int64) ([]GetPageSeoByPageIDRow, error) {
+	rows, err := q.db.Query(ctx, getPageSeoByPageID, pageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPageSeoByPageIDRow
+	for rows.Next() {
+		var i GetPageSeoByPageIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PageID,
+			&i.LocaleID,
+			&i.Title,
+			&i.Description,
 		); err != nil {
 			return nil, err
 		}
@@ -284,14 +372,14 @@ WITH RECURSIVE post_tree AS (
       AND p.published_at IS NOT NULL
   UNION ALL
     SELECT c.id, c.blog_id, cs.locale_id,
-           pt.path || '/' || cs.slug
+           CASE WHEN pt.path = '' THEN cs.slug ELSE pt.path || '/' || cs.slug END
     FROM pages c
     JOIN page_slugs cs ON cs.page_id = c.id
     JOIN post_tree pt ON pt.id = c.parent_id AND pt.locale_id = cs.locale_id
     WHERE c.site_id = $1 AND c.type = 'post' AND c.published_at IS NOT NULL
 )
 SELECT pt.id AS page_id, pt.blog_id, pt.locale_id, sl.code AS locale_code, sl.is_default,
-       (bs.slug || '/' || pt.path)::TEXT AS path
+       CASE WHEN pt.path = '' THEN bs.slug ELSE (bs.slug || '/' || pt.path)::TEXT END AS path
 FROM post_tree pt
 JOIN blog_slugs bs ON bs.blog_id = pt.blog_id AND bs.locale_id = pt.locale_id
 JOIN site_locales sl ON sl.id = pt.locale_id

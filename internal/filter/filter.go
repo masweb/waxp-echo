@@ -100,47 +100,48 @@ func (b *Builder) Build(cursor *int64) Result {
 	}
 
 	for _, f := range b.filters {
+		col := `"` + f.Column + `"`
 		switch f.Operator {
 		case OpIsNull:
 			if strings.EqualFold(f.Value, "true") {
-				clauses = append(clauses, fmt.Sprintf("%s IS NULL", f.Column))
+				clauses = append(clauses, fmt.Sprintf("%s IS NULL", col))
 			} else {
-				clauses = append(clauses, fmt.Sprintf("%s IS NOT NULL", f.Column))
+				clauses = append(clauses, fmt.Sprintf("%s IS NOT NULL", col))
 			}
 
 		case OpLike:
 			idx++
-			clauses = append(clauses, fmt.Sprintf("%s ILIKE $%d", f.Column, idx))
+			clauses = append(clauses, fmt.Sprintf("%s ILIKE $%d", col, idx))
 			args = append(args, "%"+f.Value+"%")
 
 		case OpEq:
 			idx++
-			clauses = append(clauses, fmt.Sprintf("%s = $%d", f.Column, idx))
+			clauses = append(clauses, fmt.Sprintf("%s = $%d", col, idx))
 			args = append(args, f.Value)
 
 		case OpNeq, OpNot:
 			idx++
-			clauses = append(clauses, fmt.Sprintf("%s != $%d", f.Column, idx))
+			clauses = append(clauses, fmt.Sprintf("%s != $%d", col, idx))
 			args = append(args, f.Value)
 
 		case OpGt:
 			idx++
-			clauses = append(clauses, fmt.Sprintf("%s > $%d", f.Column, idx))
+			clauses = append(clauses, fmt.Sprintf("%s > $%d", col, idx))
 			args = append(args, f.Value)
 
 		case OpGte:
 			idx++
-			clauses = append(clauses, fmt.Sprintf("%s >= $%d", f.Column, idx))
+			clauses = append(clauses, fmt.Sprintf("%s >= $%d", col, idx))
 			args = append(args, f.Value)
 
 		case OpLt:
 			idx++
-			clauses = append(clauses, fmt.Sprintf("%s < $%d", f.Column, idx))
+			clauses = append(clauses, fmt.Sprintf("%s < $%d", col, idx))
 			args = append(args, f.Value)
 
 		case OpLte:
 			idx++
-			clauses = append(clauses, fmt.Sprintf("%s <= $%d", f.Column, idx))
+			clauses = append(clauses, fmt.Sprintf("%s <= $%d", col, idx))
 			args = append(args, f.Value)
 
 		case OpIn:
@@ -151,7 +152,7 @@ func (b *Builder) Build(cursor *int64) Result {
 				placeholders[i] = fmt.Sprintf("$%d", idx)
 				args = append(args, strings.TrimSpace(v))
 			}
-			clauses = append(clauses, fmt.Sprintf("%s IN (%s)", f.Column, strings.Join(placeholders, ", ")))
+			clauses = append(clauses, fmt.Sprintf("%s IN (%s)", col, strings.Join(placeholders, ", ")))
 		}
 	}
 

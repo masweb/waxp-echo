@@ -30,6 +30,19 @@ WHERE page_id = $1;
 -- name: DeletePageSlugsByPageID :exec
 DELETE FROM page_slugs WHERE page_id = $1;
 
+-- name: CreatePageSeo :one
+INSERT INTO page_seo (page_id, locale_id, title, description)
+VALUES ($1, $2, $3, $4)
+RETURNING id, page_id, locale_id, title, description;
+
+-- name: GetPageSeoByPageID :many
+SELECT id, page_id, locale_id, title, description
+FROM page_seo
+WHERE page_id = $1;
+
+-- name: DeletePageSeoByPageID :exec
+DELETE FROM page_seo WHERE page_id = $1;
+
 -- name: GetBlogByID :one
 SELECT id, site_id, created_at, updated_at
 FROM blogs
@@ -54,7 +67,7 @@ WITH RECURSIVE page_tree AS (
       AND p.published_at IS NOT NULL
   UNION ALL
     SELECT c.id, cs.locale_id, sl.code, sl.is_default,
-           pt.path || '/' || cs.slug
+           CASE WHEN pt.path = '' THEN cs.slug ELSE pt.path || '/' || cs.slug END
     FROM pages c
     JOIN page_slugs cs ON cs.page_id = c.id
     JOIN site_locales sl ON sl.id = cs.locale_id
@@ -81,14 +94,14 @@ WITH RECURSIVE post_tree AS (
       AND p.published_at IS NOT NULL
   UNION ALL
     SELECT c.id, c.blog_id, cs.locale_id,
-           pt.path || '/' || cs.slug
+           CASE WHEN pt.path = '' THEN cs.slug ELSE pt.path || '/' || cs.slug END
     FROM pages c
     JOIN page_slugs cs ON cs.page_id = c.id
     JOIN post_tree pt ON pt.id = c.parent_id AND pt.locale_id = cs.locale_id
     WHERE c.site_id = $1 AND c.type = 'post' AND c.published_at IS NOT NULL
 )
 SELECT pt.id AS page_id, pt.blog_id, pt.locale_id, sl.code AS locale_code, sl.is_default,
-       (bs.slug || '/' || pt.path)::TEXT AS path
+       CASE WHEN pt.path = '' THEN bs.slug ELSE (bs.slug || '/' || pt.path)::TEXT END AS path
 FROM post_tree pt
 JOIN blog_slugs bs ON bs.blog_id = pt.blog_id AND bs.locale_id = pt.locale_id
 JOIN site_locales sl ON sl.id = pt.locale_id

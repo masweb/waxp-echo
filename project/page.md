@@ -14,14 +14,25 @@ Authorization: Bearer <token>
 |-------|------|-------------|
 | `id` | int64 | ID de la página |
 | `site_id` | int64 | ID del site al que pertenece |
-| `blog_id` | int64\|null | ID del blog (solo para posts) |
-| `parent_id` | int64\|null | ID de la página padre (anidación) |
+| `blog_id` | int64|null | ID del blog (solo para posts) |
+| `parent_id` | int64|null | ID de la página padre (anidación) |
 | `type` | string | `"page"` o `"post"` |
 | `layout` | JSONB | Contenido/layout de la página |
-| `published_at` | string\|null | Fecha de publicación (ISO 8601). `null` = borrador |
+| `published_at` | string|null | Fecha de publicación (ISO 8601). `null` = borrador |
+| `title` | array | Títulos por locale |
+| `description` | array | Descripciones por locale |
 | `slugs` | array | Slugs por locale |
 | `created_at` | string | Fecha de creación (ISO 8601) |
 | `updated_at` | string | Fecha de actualización (ISO 8601) |
+
+### PageSeo
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `id` | int64 | ID del registro SEO |
+| `locale_code` | string | Código de idioma (ISO 639-1) |
+| `title` | string | Título de la página (SEO) |
+| `description` | string | Descripción (SEO meta description) |
 
 ### Slug
 
@@ -61,7 +72,7 @@ Pages (type='page', blog_id=NULL)
 - Para posts, el padre debe pertenecer al mismo blog.
 - Cada slug es un segmento individual. La ruta completa se compone concatenando los slugs de la cadena de ancestros.
 - Solo las páginas con `published_at` no nulo aparecen en el endpoint de rutas.
-- Al eliminar una página se eliminan en cascada sus slugs y páginas hijas.
+- Al eliminar una página se eliminan en cascada sus slugs, SEO y páginas hijas.
 
 ---
 
@@ -78,9 +89,13 @@ POST /api/sites/:id/pages
   "parent_id": null,
   "layout": {},
   "published_at": "2026-04-14T10:00:00Z",
+  "seo": [
+    { "locale_code": "es", "title": "Sobre nosotros", "description": "Conoce nuestro equipo" },
+    { "locale_code": "en", "title": "About us", "description": "Meet our team" }
+  ],
   "slugs": [
-    { "locale_code": "es", "slug": "about" },
-    { "locale_code": "en", "slug": "sobre-nosotros" }
+    { "locale_code": "es", "slug": "sobre-nosotros" },
+    { "locale_code": "en", "slug": "about" }
   ]
 }
 ```
@@ -92,6 +107,10 @@ POST /api/sites/:id/pages
   "blog_id": 1,
   "layout": {},
   "published_at": "2026-04-14T10:00:00Z",
+  "seo": [
+    { "locale_code": "es", "title": "Mi artículo", "description": "Descripción SEO" },
+    { "locale_code": "en", "title": "My article", "description": "SEO description" }
+  ],
   "slugs": [
     { "locale_code": "es", "slug": "mi-articulo" },
     { "locale_code": "en", "slug": "my-article" }
@@ -102,11 +121,32 @@ POST /api/sites/:id/pages
 | Campo | Tipo | Requerido | Descripción |
 |-------|------|-----------|-------------|
 | `type` | string | Sí | `"page"` o `"post"` |
-| `blog_id` | int64\|null | Sí si `type="post"` | ID del blog. Debe pertenecer al site |
-| `parent_id` | int64\|null | No | ID de la página padre. Mismo tipo y (para posts) mismo blog |
-| `layout` | object | No | Layout de la página. Por defecto `{}` |
-| `published_at` | string\|null | No | Fecha de publicación (ISO 8601). `null` o omitir = borrador |
+| `blog_id` | int64|null | Sí si `type="post"` | ID del blog. Debe pertenecer al site |
+| `parent_id` | int64|null | No | ID de la página padre. Mismo tipo y (para posts) mismo blog |
+| `layout` | object | No | Layout de la página. Si está vacío o ausente, se generan 4 secciones iniciales con IDs únicos |
+| `published_at` | string|null | No | Fecha de publicación (ISO 8601). `null` o omitir = borrador |
+| `seo` | array | No | SEO titles y descriptions por locale |
 | `slugs` | array | Sí | Al menos un slug. Cada `locale_code` debe pertenecer al site |
+
+**Layout por defecto:**
+Cuando `layout` está vacío, `{}`, o `null`, el backend genera automáticamente 4 secciones:
+
+```json
+[
+  {
+    "id": 1,
+    "mobile": { "cols": 8, "rows": 12 },
+    "tablet": { "cols": 12, "rows": 16 },
+    "desktop": { "cols": 24, "rows": 20 },
+    "blocks": []
+  },
+  { "id": 2, "mobile": {...}, "tablet": {...}, "desktop": {...}, "blocks": [] },
+  { "id": 3, "mobile": {...}, "tablet": {...}, "desktop": {...}, "blocks": [] },
+  { "id": 4, "mobile": {...}, "tablet": {...}, "desktop": {...}, "blocks": [] }
+]
+```
+
+> Los IDs de sección son únicos globalmente por site y se asignan desde un contador persistente.
 
 **Response 201:**
 ```json
@@ -118,9 +158,13 @@ POST /api/sites/:id/pages
   "type": "page",
   "layout": {},
   "published_at": "2026-04-14T10:00:00Z",
+  "seo": [
+    { "id": 1, "locale_code": "es", "title": "Sobre nosotros", "description": "Contenido SEO" },
+    { "id": 2, "locale_code": "en", "title": "About us", "description": "SEO content" }
+  ],
   "slugs": [
-    { "id": 1, "locale_code": "es", "slug": "about" },
-    { "id": 2, "locale_code": "en", "slug": "sobre-nosotros" }
+    { "id": 1, "locale_code": "es", "slug": "sobre-nosotros" },
+    { "id": 2, "locale_code": "en", "slug": "about" }
   ],
   "created_at": "2026-04-14T10:00:00Z",
   "updated_at": "2026-04-14T10:00:00Z"
@@ -130,7 +174,7 @@ POST /api/sites/:id/pages
 **Errors:**
 | Status | When |
 |--------|------|
-| 400 | `type` inválido, sin slugs, slug vacío, locale_code no pertenece al site, `blog_id` requerido para posts, blog no encontrado, parent_id no encontrado o tipo incompatible, página no puede ser su propio padre |
+| 400 | `type` inválido, sin slugs, slug vacío, locale_code no pertenece al site, `blog_id` requerido para posts, blog no encontrado, parent_id no encontrado o tipo incompatible, página no puede ser su propio padre, seo sin locale_code o locale_code no pertenece al site |
 | 401 | Token missing, invalid or expired |
 | 404 | Site no encontrado |
 
@@ -171,9 +215,13 @@ Ver [Paginación](./pagination.md) para detalle del comportamiento.
       "type": "page",
       "layout": {},
       "published_at": "2026-04-14T10:00:00Z",
+      "seo": [
+        { "id": 1, "locale_code": "es", "title": "Sobre nosotros", "description": "Contenido SEO" },
+        { "id": 2, "locale_code": "en", "title": "About us", "description": "SEO content" }
+      ],
       "slugs": [
-        { "id": 1, "locale_code": "es", "slug": "about" },
-        { "id": 2, "locale_code": "en", "slug": "sobre-nosotros" }
+        { "id": 1, "locale_code": "es", "slug": "sobre-nosotros" },
+        { "id": 2, "locale_code": "en", "slug": "about" }
       ],
       "created_at": "2026-04-14T10:00:00Z",
       "updated_at": "2026-04-14T10:00:00Z"
@@ -217,7 +265,7 @@ GET /api/sites/:id/pages/:pageId
 PUT /api/sites/:id/pages/:pageId
 ```
 
-El `type` y `blog_id` no se pueden modificar tras la creación. Solo se actualizan `parent_id`, `layout`, `published_at` y `slugs`.
+El `type` y `blog_id` no se pueden modificar tras la creación. Solo se actualizan `parent_id`, `layout`, `published_at`, `seo` y `slugs`.
 
 **Body:**
 ```json
@@ -225,6 +273,10 @@ El `type` y `blog_id` no se pueden modificar tras la creación. Solo se actualiz
   "parent_id": 1,
   "layout": { "components": [...] },
   "published_at": "2026-04-14T12:00:00Z",
+  "seo": [
+    { "locale_code": "es", "title": "Sobre nosotros", "description": "Conoce nuestro equipo" },
+    { "locale_code": "en", "title": "About us", "description": "Meet our team" }
+  ],
   "slugs": [
     { "locale_code": "es", "slug": "about-us" },
     { "locale_code": "en", "slug": "sobre-nosotros" }
@@ -234,19 +286,20 @@ El `type` y `blog_id` no se pueden modificar tras la creación. Solo se actualiz
 
 | Campo | Tipo | Requerido | Descripción |
 |-------|------|-----------|-------------|
-| `parent_id` | int64\|null | No | Cambiar padre. Mismo tipo y (para posts) mismo blog. La página no puede ser su propio padre |
+| `parent_id` | int64|null | No | Cambiar padre. Mismo tipo y (para posts) mismo blog. La página no puede ser su propio padre |
 | `layout` | object | No | Actualizar layout. Por defecto `{}` |
-| `published_at` | string\|null | No | Actualizar fecha de publicación |
+| `published_at` | string|null | No | Actualizar fecha de publicación |
+| `seo` | array | No | Reemplaza todos los SEO. Cada `locale_code` debe pertenecer al site |
 | `slugs` | array | Sí | Reemplaza todos los slugs existentes. Al menos uno requerido |
 
-> Los slugs se eliminan y reinsertan en una transacción atómica.
+> Los slugs y SEO se eliminan y reinsertan en una transacción atómica.
 
 **Response 200:** Mismo formato que Get Page.
 
 **Errors:**
 | Status | When |
 |--------|------|
-| 400 | Sin slugs, slug vacío, locale_code no pertenece al site, parent_id inválido o tipo incompatible, página no puede ser su propio padre |
+| 400 | Sin slugs, slug vacío, locale_code no pertenece al site, parent_id inválido o tipo incompatible, página no puede ser su propio padre, seo sin locale_code o locale_code no pertenece al site |
 | 401 | Token missing, invalid or expired |
 | 404 | Página no encontrada |
 
@@ -260,7 +313,7 @@ DELETE /api/sites/:id/pages/:pageId
 
 **Response 204:** *(sin body)*
 
-> El delete es en cascada: se eliminan los `page_slugs` asociados y todas las páginas hijas (y sus slugs, recursivamente).
+> El delete es en cascada: se eliminan los `page_slugs` y `page_seo` asociados y todas las páginas hijas (y sus slugs y SEO, recursivamente).
 
 **Errors:**
 | Status | When |
@@ -317,6 +370,32 @@ GET /api/sites/:id/routes
 | `path` | string | Ruta completa |
 | `page_id` | int64 | Presente si es una página o post |
 | `blog_id` | int64 | Presente si es un blog (listado) |
+
+**Errors:**
+| Status | When |
+|--------|------|
+| 400 | Site ID inválido |
+| 401 | Token missing, invalid or expired |
+| 404 | Site no encontrado |
+
+---
+
+## Next Section ID
+
+Obtiene el siguiente ID de sección único para un site. Útil cuando el frontend necesita crear nuevas secciones y requiere un ID único del backend.
+
+```
+POST /api/sites/:id/sections/next-id
+```
+
+**Response 200:**
+```json
+{
+  "id": 5
+}
+```
+
+> El contador de IDs es global por site y se persiste en la base de datos. Cada llamada incrementa el contador.
 
 **Errors:**
 | Status | When |
