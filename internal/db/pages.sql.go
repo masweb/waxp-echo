@@ -332,6 +332,46 @@ func (q *Queries) GetPageSeoByPageID(ctx context.Context, pageID int64) ([]GetPa
 	return items, nil
 }
 
+const getPageSeoByPageIDs = `-- name: GetPageSeoByPageIDs :many
+SELECT id, page_id, locale_id, title, description
+FROM page_seo
+WHERE page_id = ANY($1::BIGINT[])
+`
+
+type GetPageSeoByPageIDsRow struct {
+	ID          int64       `json:"id"`
+	PageID      int64       `json:"page_id"`
+	LocaleID    int64       `json:"locale_id"`
+	Title       string      `json:"title"`
+	Description pgtype.Text `json:"description"`
+}
+
+func (q *Queries) GetPageSeoByPageIDs(ctx context.Context, dollar_1 []int64) ([]GetPageSeoByPageIDsRow, error) {
+	rows, err := q.db.Query(ctx, getPageSeoByPageIDs, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPageSeoByPageIDsRow
+	for rows.Next() {
+		var i GetPageSeoByPageIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PageID,
+			&i.LocaleID,
+			&i.Title,
+			&i.Description,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPageSlugsByPageID = `-- name: GetPageSlugsByPageID :many
 SELECT id, page_id, locale_id, slug
 FROM page_slugs
@@ -340,6 +380,37 @@ WHERE page_id = $1
 
 func (q *Queries) GetPageSlugsByPageID(ctx context.Context, pageID int64) ([]PageSlug, error) {
 	rows, err := q.db.Query(ctx, getPageSlugsByPageID, pageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PageSlug
+	for rows.Next() {
+		var i PageSlug
+		if err := rows.Scan(
+			&i.ID,
+			&i.PageID,
+			&i.LocaleID,
+			&i.Slug,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPageSlugsByPageIDs = `-- name: GetPageSlugsByPageIDs :many
+SELECT id, page_id, locale_id, slug
+FROM page_slugs
+WHERE page_id = ANY($1::BIGINT[])
+`
+
+func (q *Queries) GetPageSlugsByPageIDs(ctx context.Context, dollar_1 []int64) ([]PageSlug, error) {
+	rows, err := q.db.Query(ctx, getPageSlugsByPageIDs, dollar_1)
 	if err != nil {
 		return nil, err
 	}

@@ -66,7 +66,7 @@ func (b *Builder) Parse(queryParams url.Values) error {
 
 		colName, ok := b.allowed[column]
 		if !ok {
-			continue
+			return fmt.Errorf("unknown filter column: %s", column)
 		}
 
 		b.filters = append(b.filters, Filter{
@@ -88,10 +88,10 @@ func parseKey(key string) (column string, op Operator) {
 	return key, OpEq
 }
 
-func (b *Builder) Build(cursor *int64) Result {
+func (b *Builder) Build(cursor *int64, startIdx int) Result {
 	var clauses []string
 	var args []any
-	idx := 0
+	idx := startIdx - 1
 
 	if cursor != nil {
 		idx++
@@ -161,7 +161,7 @@ func (b *Builder) Build(cursor *int64) Result {
 	}
 
 	return Result{
-		WhereClause: " WHERE " + strings.Join(clauses, " AND "),
+		WhereClause: strings.Join(clauses, " AND "),
 		Args:        args,
 	}
 }

@@ -38,7 +38,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	queries := db.New(pool)
 	authHandler := handler.NewAuthHandler(queries, cfg.JWTSecret)
 	siteHandler := handler.NewSiteHandler(queries, pool)
-	localeHandler := handler.NewLocaleHandler(queries, pool)
+	localeHandler := handler.NewLocaleHandler(queries)
 
 	e.GET("/health", handler.Health)
 

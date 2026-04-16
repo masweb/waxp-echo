@@ -9,6 +9,7 @@ import (
 	"github.com/labstack/echo/v5"
 	"golang.org/x/crypto/bcrypt"
 
+	"waxp/echo/internal/apierror"
 	"waxp/echo/internal/db"
 	"waxp/echo/internal/middleware"
 )
@@ -48,20 +49,20 @@ type UserResponse struct {
 func (h *AuthHandler) Register(c *echo.Context) error {
 	var req RegisterRequest
 	if err := c.Bind(&req); err != nil {
-		return ErrorJSON(c, http.StatusBadRequest, "invalid request body")
+		return apierror.JSON(c, http.StatusBadRequest, "invalid request body")
 	}
 
 	if req.Email == "" || req.Password == "" {
-		return ErrorJSON(c, http.StatusBadRequest, "email and password are required")
+		return apierror.JSON(c, http.StatusBadRequest, "email and password are required")
 	}
 
 	if len(req.Password) < 8 {
-		return ErrorJSON(c, http.StatusBadRequest, "password must be at least 8 characters")
+		return apierror.JSON(c, http.StatusBadRequest, "password must be at least 8 characters")
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return InternalError(c, "failed to hash password", err)
+		return apierror.Internal(c, "failed to hash password", err)
 	}
 
 	user, err := h.queries.CreateUser(c.Request().Context(), db.CreateUserParams{
@@ -71,14 +72,14 @@ func (h *AuthHandler) Register(c *echo.Context) error {
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return ErrorJSON(c, http.StatusConflict, "email already exists")
+			return apierror.JSON(c, http.StatusConflict, "email already exists")
 		}
-		return InternalError(c, "failed to create user", err)
+		return apierror.Internal(c, "failed to create user", err)
 	}
 
 	token, err := middleware.GenerateToken(h.jwtSecret, user.ID, user.Email)
 	if err != nil {
-		return InternalError(c, "failed to generate token", err)
+		return apierror.Internal(c, "failed to generate token", err)
 	}
 
 	return c.JSON(http.StatusCreated, AuthResponse{
@@ -90,28 +91,28 @@ func (h *AuthHandler) Register(c *echo.Context) error {
 func (h *AuthHandler) Login(c *echo.Context) error {
 	var req LoginRequest
 	if err := c.Bind(&req); err != nil {
-		return ErrorJSON(c, http.StatusBadRequest, "invalid request body")
+		return apierror.JSON(c, http.StatusBadRequest, "invalid request body")
 	}
 
 	if req.Email == "" || req.Password == "" {
-		return ErrorJSON(c, http.StatusBadRequest, "email and password are required")
+		return apierror.JSON(c, http.StatusBadRequest, "email and password are required")
 	}
 
 	user, err := h.queries.GetUserByEmail(c.Request().Context(), req.Email)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrorJSON(c, http.StatusUnauthorized, "invalid credentials")
+			return apierror.JSON(c, http.StatusUnauthorized, "invalid credentials")
 		}
-		return InternalError(c, "failed to get user", err)
+		return apierror.Internal(c, "failed to get user", err)
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		return ErrorJSON(c, http.StatusUnauthorized, "invalid credentials")
+		return apierror.JSON(c, http.StatusUnauthorized, "invalid credentials")
 	}
 
 	token, err := middleware.GenerateToken(h.jwtSecret, user.ID, user.Email)
 	if err != nil {
-		return InternalError(c, "failed to generate token", err)
+		return apierror.Internal(c, "failed to generate token", err)
 	}
 
 	return c.JSON(http.StatusOK, AuthResponse{

@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v5"
 
+	"waxp/echo/internal/apierror"
 	"waxp/echo/internal/db"
 	"waxp/echo/internal/filter"
 )
@@ -96,35 +97,43 @@ type RoutesResponse struct {
 func (h *PageHandler) Create(c *echo.Context) error {
 	siteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		return ErrorJSON(c, http.StatusBadRequest, "invalid site id")
+		return apierror.JSON(c, http.StatusBadRequest, "invalid site id")
 	}
 
 	var req CreatePageRequest
 	if err := c.Bind(&req); err != nil {
-		return ErrorJSON(c, http.StatusBadRequest, "invalid request body")
+		return apierror.JSON(c, http.StatusBadRequest, "invalid request body")
 	}
 
 	if req.Type != "page" && req.Type != "post" {
-		return ErrorJSON(c, http.StatusBadRequest, "type must be 'page' or 'post'")
+		return apierror.JSON(c, http.StatusBadRequest, "type must be 'page' or 'post'")
 	}
 
 	if len(req.Slugs) == 0 {
-		return ErrorJSON(c, http.StatusBadRequest, "at least one slug is required")
+		return apierror.JSON(c, http.StatusBadRequest, "at least one slug is required")
 	}
 
 	for i := range req.Slugs {
 		req.Slugs[i].Slug = strings.Trim(strings.TrimSpace(req.Slugs[i].Slug), "/")
 		if req.Slugs[i].Slug == "" && req.ParentID != nil {
-			return ErrorJSON(c, http.StatusBadRequest, "slug cannot be empty for child pages")
+			return apierror.JSON(c, http.StatusBadRequest, "slug cannot be empty for child pages")
 		}
+	}
+
+	seen := make(map[string]bool, len(req.Slugs))
+	for _, s := range req.Slugs {
+		if seen[s.LocaleCode] {
+			return apierror.JSON(c, http.StatusBadRequest, fmt.Sprintf("duplicate locale_code '%s' in slugs", s.LocaleCode))
+		}
+		seen[s.LocaleCode] = true
 	}
 
 	for _, s := range req.Seo {
 		if s.LocaleCode == "" {
-			return ErrorJSON(c, http.StatusBadRequest, "locale_code is required for each seo entry")
+			return apierror.JSON(c, http.StatusBadRequest, "locale_code is required for each seo entry")
 		}
 		if s.Title == "" {
-			return ErrorJSON(c, http.StatusBadRequest, "title is required for each seo entry")
+			return apierror.JSON(c, http.StatusBadRequest, "title is required for each seo entry")
 		}
 	}
 
@@ -136,7 +145,7 @@ func (h *PageHandler) Create(c *echo.Context) error {
 		for i := range sectionIDs {
 			id, err := h.queries.GetNextSectionID(ctx, siteID)
 			if err != nil {
-				return InternalError(c, "failed to generate section id", err)
+				return apierror.Internal(c, "failed to generate section id", err)
 			}
 			sectionIDs[i] = id
 		}
@@ -153,7 +162,7 @@ func (h *PageHandler) Create(c *echo.Context) error {
 	if req.PublishedAt != nil {
 		t, err := time.Parse(time.RFC3339, *req.PublishedAt)
 		if err != nil {
-			return ErrorJSON(c, http.StatusBadRequest, "invalid published_at format, use ISO 8601")
+			return apierror.JSON(c, http.StatusBadRequest, "invalid published_at format, use ISO 8601")
 		}
 		publishedAt = pgtype.Timestamptz{Time: t, Valid: true}
 	}
@@ -162,23 +171,23 @@ func (h *PageHandler) Create(c *echo.Context) error {
 	_, err = h.queries.GetSiteByID(ctx, siteID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrorJSON(c, http.StatusNotFound, "site not found")
+			return apierror.JSON(c, http.StatusNotFound, "site not found")
 		}
-		return InternalError(c, "failed to get site", err)
+		return apierror.Internal(c, "failed to get site", err)
 	}
 
 	// Validate blog_id for posts
 	var blogID pgtype.Int8
 	if req.Type == "post" {
 		if req.BlogID == nil {
-			return ErrorJSON(c, http.StatusBadRequest, "blog_id is required for posts")
+			return apierror.JSON(c, http.StatusBadRequest, "blog_id is required for posts")
 		}
 		_, err = h.queries.GetBlogByID(ctx, db.GetBlogByIDParams{ID: *req.BlogID, SiteID: siteID})
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				return ErrorJSON(c, http.StatusBadRequest, "blog not found in this site")
+				return apierror.JSON(c, http.StatusBadRequest, "blog not found in this site")
 			}
-			return InternalError(c, "failed to get blog", err)
+			return apierror.Internal(c, "failed to get blog", err)
 		}
 		blogID = pgtype.Int8{Int64: *req.BlogID, Valid: true}
 	}
@@ -189,16 +198,16 @@ func (h *PageHandler) Create(c *echo.Context) error {
 		parent, err := h.queries.GetPageByID(ctx, db.GetPageByIDParams{ID: *req.ParentID, SiteID: siteID})
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				return ErrorJSON(c, http.StatusBadRequest, "parent page not found in this site")
+				return apierror.JSON(c, http.StatusBadRequest, "parent page not found in this site")
 			}
-			return InternalError(c, "failed to get parent page", err)
+			return apierror.Internal(c, "failed to get parent page", err)
 		}
 		if parent.Type != req.Type {
-			return ErrorJSON(c, http.StatusBadRequest, fmt.Sprintf("parent must be of type '%s'", req.Type))
+			return apierror.JSON(c, http.StatusBadRequest, fmt.Sprintf("parent must be of type '%s'", req.Type))
 		}
 		// For posts, validate same blog
 		if req.Type == "post" && parent.BlogID.Int64 != blogID.Int64 {
-			return ErrorJSON(c, http.StatusBadRequest, "parent post must belong to the same blog")
+			return apierror.JSON(c, http.StatusBadRequest, "parent post must belong to the same blog")
 		}
 		parentID = pgtype.Int8{Int64: *req.ParentID, Valid: true}
 	}
@@ -206,7 +215,7 @@ func (h *PageHandler) Create(c *echo.Context) error {
 	// Validate locale IDs belong to site
 	siteLocales, err := h.queries.ListSiteLocales(ctx, siteID)
 	if err != nil {
-		return InternalError(c, "failed to get site locales", err)
+		return apierror.Internal(c, "failed to get site locales", err)
 	}
 	localeByCode := make(map[string]db.SiteLocale, len(siteLocales))
 	for _, l := range siteLocales {
@@ -214,18 +223,18 @@ func (h *PageHandler) Create(c *echo.Context) error {
 	}
 	for _, s := range req.Slugs {
 		if _, ok := localeByCode[s.LocaleCode]; !ok {
-			return ErrorJSON(c, http.StatusBadRequest, fmt.Sprintf("locale_code '%s' does not belong to this site", s.LocaleCode))
+			return apierror.JSON(c, http.StatusBadRequest, fmt.Sprintf("locale_code '%s' does not belong to this site", s.LocaleCode))
 		}
 	}
 	for _, s := range req.Seo {
 		if _, ok := localeByCode[s.LocaleCode]; !ok {
-			return ErrorJSON(c, http.StatusBadRequest, fmt.Sprintf("locale_code '%s' does not belong to this site", s.LocaleCode))
+			return apierror.JSON(c, http.StatusBadRequest, fmt.Sprintf("locale_code '%s' does not belong to this site", s.LocaleCode))
 		}
 	}
 
 	tx, err := h.pool.Begin(ctx)
 	if err != nil {
-		return InternalError(c, "failed to begin transaction", err)
+		return apierror.Internal(c, "failed to begin transaction", err)
 	}
 	defer tx.Rollback(ctx)
 
@@ -240,7 +249,7 @@ func (h *PageHandler) Create(c *echo.Context) error {
 		PublishedAt: publishedAt,
 	})
 	if err != nil {
-		return InternalError(c, "failed to create page", err)
+		return apierror.Internal(c, "failed to create page", err)
 	}
 
 	localeByID := make(map[int64]db.SiteLocale, len(siteLocales))
@@ -257,7 +266,7 @@ func (h *PageHandler) Create(c *echo.Context) error {
 			Slug:     s.Slug,
 		})
 		if err != nil {
-			return InternalError(c, "failed to create page slug", err)
+			return apierror.Internal(c, "failed to create page slug", err)
 		}
 		slugs = append(slugs, PageSlugResponse{
 			ID:         slug.ID,
@@ -280,7 +289,7 @@ func (h *PageHandler) Create(c *echo.Context) error {
 			Description: desc,
 		})
 		if err != nil {
-			return InternalError(c, "failed to create page seo", err)
+			return apierror.Internal(c, "failed to create page seo", err)
 		}
 		seo = append(seo, PageSeoResponse{
 			ID:          row.ID,
@@ -291,7 +300,7 @@ func (h *PageHandler) Create(c *echo.Context) error {
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return InternalError(c, "failed to commit transaction", err)
+		return apierror.Internal(c, "failed to commit transaction", err)
 	}
 
 	return c.JSON(http.StatusCreated, toPageResponse(page, slugs, seo))
@@ -300,12 +309,12 @@ func (h *PageHandler) Create(c *echo.Context) error {
 func (h *PageHandler) GetByID(c *echo.Context) error {
 	siteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		return ErrorJSON(c, http.StatusBadRequest, "invalid site id")
+		return apierror.JSON(c, http.StatusBadRequest, "invalid site id")
 	}
 
 	pageID, err := strconv.ParseInt(c.Param("pageId"), 10, 64)
 	if err != nil {
-		return ErrorJSON(c, http.StatusBadRequest, "invalid page id")
+		return apierror.JSON(c, http.StatusBadRequest, "invalid page id")
 	}
 
 	ctx := c.Request().Context()
@@ -313,24 +322,24 @@ func (h *PageHandler) GetByID(c *echo.Context) error {
 	page, err := h.queries.GetPageByID(ctx, db.GetPageByIDParams{ID: pageID, SiteID: siteID})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrorJSON(c, http.StatusNotFound, "page not found")
+			return apierror.JSON(c, http.StatusNotFound, "page not found")
 		}
-		return InternalError(c, "failed to get page", err)
+		return apierror.Internal(c, "failed to get page", err)
 	}
 
 	slugs, err := h.queries.GetPageSlugsByPageID(ctx, pageID)
 	if err != nil {
-		return InternalError(c, "failed to get page slugs", err)
+		return apierror.Internal(c, "failed to get page slugs", err)
 	}
 
 	seoRows, err := h.queries.GetPageSeoByPageID(ctx, pageID)
 	if err != nil {
-		return InternalError(c, "failed to get page seo", err)
+		return apierror.Internal(c, "failed to get page seo", err)
 	}
 
 	siteLocales, err := h.queries.ListSiteLocales(ctx, siteID)
 	if err != nil {
-		return InternalError(c, "failed to get site locales", err)
+		return apierror.Internal(c, "failed to get site locales", err)
 	}
 	localeMap := make(map[int64]db.SiteLocale, len(siteLocales))
 	for _, l := range siteLocales {
@@ -343,7 +352,7 @@ func (h *PageHandler) GetByID(c *echo.Context) error {
 func (h *PageHandler) List(c *echo.Context) error {
 	siteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		return ErrorJSON(c, http.StatusBadRequest, "invalid site id")
+		return apierror.JSON(c, http.StatusBadRequest, "invalid site id")
 	}
 
 	ctx := c.Request().Context()
@@ -352,9 +361,9 @@ func (h *PageHandler) List(c *echo.Context) error {
 	_, err = h.queries.GetSiteByID(ctx, siteID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrorJSON(c, http.StatusNotFound, "site not found")
+			return apierror.JSON(c, http.StatusNotFound, "site not found")
 		}
-		return InternalError(c, "failed to get site", err)
+		return apierror.Internal(c, "failed to get site", err)
 	}
 
 	const maxLimit int32 = 100
@@ -366,7 +375,7 @@ func (h *PageHandler) List(c *echo.Context) error {
 	if limitStr != "" {
 		parsed, err := strconv.ParseInt(limitStr, 10, 32)
 		if err != nil || parsed <= 0 {
-			return ErrorJSON(c, http.StatusBadRequest, "invalid limit")
+			return apierror.JSON(c, http.StatusBadRequest, "invalid limit")
 		}
 		v := int32(parsed)
 		if v > maxLimit {
@@ -379,7 +388,7 @@ func (h *PageHandler) List(c *echo.Context) error {
 	if cursorStr != "" {
 		parsed, err := strconv.ParseInt(cursorStr, 10, 64)
 		if err != nil || parsed < 0 {
-			return ErrorJSON(c, http.StatusBadRequest, "invalid cursor")
+			return apierror.JSON(c, http.StatusBadRequest, "invalid cursor")
 		}
 		cursor = &parsed
 	}
@@ -392,26 +401,22 @@ func (h *PageHandler) List(c *echo.Context) error {
 		"published_at": "published_at",
 	})
 	if err := builder.Parse(c.Request().URL.Query()); err != nil {
-		return ErrorJSON(c, http.StatusBadRequest, err.Error())
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
 	}
 
-	result := builder.Build(cursor)
+	result := builder.Build(cursor, 2)
 
-	var whereClause string
-	var args []any
+	whereClause := " WHERE site_id = $1"
+	args := []any{siteID}
 	if result.WhereClause != "" {
-		filterClause := shiftParamIndices(result.WhereClause[len(" WHERE "):], 1)
-		whereClause = " WHERE site_id = $1 AND " + filterClause
-		args = append([]any{siteID}, result.Args...)
-	} else {
-		whereClause = " WHERE site_id = $1"
-		args = []any{siteID}
+		whereClause += " AND " + result.WhereClause
+		args = append(args, result.Args...)
 	}
 
 	countSQL := "SELECT COUNT(*) FROM pages" + whereClause
 	var total int64
 	if err := h.pool.QueryRow(ctx, countSQL, args...).Scan(&total); err != nil {
-		return InternalError(c, "failed to count pages", err)
+		return apierror.Internal(c, "failed to count pages", err)
 	}
 
 	listSQL := "SELECT id, site_id, blog_id, parent_id, type, layout, published_at, created_at, updated_at FROM pages" + whereClause + " ORDER BY id ASC"
@@ -428,7 +433,7 @@ func (h *PageHandler) List(c *echo.Context) error {
 
 	rows, err := h.pool.Query(ctx, listSQL, listArgs...)
 	if err != nil {
-		return InternalError(c, "failed to list pages", err)
+		return apierror.Internal(c, "failed to list pages", err)
 	}
 	defer rows.Close()
 
@@ -436,35 +441,72 @@ func (h *PageHandler) List(c *echo.Context) error {
 	for rows.Next() {
 		var p db.Page
 		if err := rows.Scan(&p.ID, &p.SiteID, &p.BlogID, &p.ParentID, &p.Type, &p.Layout, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt); err != nil {
-			return InternalError(c, "failed to scan page", err)
+			return apierror.Internal(c, "failed to scan page", err)
 		}
 		pages = append(pages, p)
 	}
 	if err := rows.Err(); err != nil {
-		return InternalError(c, "failed to list pages", err)
+		return apierror.Internal(c, "failed to list pages", err)
 	}
 
-	data := make([]PageResponse, 0, len(pages))
+	pageIDs := make([]int64, len(pages))
+	for i, p := range pages {
+		pageIDs[i] = p.ID
+	}
 
 	siteLocales, err := h.queries.ListSiteLocales(ctx, siteID)
 	if err != nil {
-		return InternalError(c, "failed to get site locales", err)
+		return apierror.Internal(c, "failed to get site locales", err)
 	}
 	localeMap := make(map[int64]db.SiteLocale, len(siteLocales))
 	for _, l := range siteLocales {
 		localeMap[l.ID] = l
 	}
 
+	var slugsByPage map[int64][]PageSlugResponse
+	var seoByPage map[int64][]PageSeoResponse
+	if len(pageIDs) > 0 {
+		allSlugs, err := h.queries.GetPageSlugsByPageIDs(ctx, pageIDs)
+		if err != nil {
+			return apierror.Internal(c, "failed to get page slugs", err)
+		}
+		slugsByPage = make(map[int64][]PageSlugResponse, len(pageIDs))
+		for _, s := range allSlugs {
+			loc := localeMap[s.LocaleID]
+			slugsByPage[s.PageID] = append(slugsByPage[s.PageID], PageSlugResponse{
+				ID:         s.ID,
+				LocaleCode: loc.Code,
+				Slug:       s.Slug,
+			})
+		}
+
+		allSeo, err := h.queries.GetPageSeoByPageIDs(ctx, pageIDs)
+		if err != nil {
+			return apierror.Internal(c, "failed to get page seo", err)
+		}
+		seoByPage = make(map[int64][]PageSeoResponse, len(pageIDs))
+		for _, s := range allSeo {
+			loc := localeMap[s.LocaleID]
+			seoByPage[s.PageID] = append(seoByPage[s.PageID], PageSeoResponse{
+				ID:          s.ID,
+				LocaleCode:  loc.Code,
+				Title:       s.Title,
+				Description: s.Description.String,
+			})
+		}
+	}
+
+	data := make([]PageResponse, 0, len(pages))
 	for _, p := range pages {
-		slugs, err := h.queries.GetPageSlugsByPageID(ctx, p.ID)
-		if err != nil {
-			return InternalError(c, "failed to get page slugs", err)
+		slugs := slugsByPage[p.ID]
+		if slugs == nil {
+			slugs = []PageSlugResponse{}
 		}
-		seoRows, err := h.queries.GetPageSeoByPageID(ctx, p.ID)
-		if err != nil {
-			return InternalError(c, "failed to get page seo", err)
+		seo := seoByPage[p.ID]
+		if seo == nil {
+			seo = []PageSeoResponse{}
 		}
-		data = append(data, toPageResponse(p, toSlugResponses(slugs, localeMap), toSeoResponses(seoRows, localeMap)))
+		data = append(data, toPageResponse(p, slugs, seo))
 	}
 
 	var nextCursor *int64
@@ -488,33 +530,41 @@ func (h *PageHandler) List(c *echo.Context) error {
 func (h *PageHandler) Update(c *echo.Context) error {
 	siteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		return ErrorJSON(c, http.StatusBadRequest, "invalid site id")
+		return apierror.JSON(c, http.StatusBadRequest, "invalid site id")
 	}
 
 	pageID, err := strconv.ParseInt(c.Param("pageId"), 10, 64)
 	if err != nil {
-		return ErrorJSON(c, http.StatusBadRequest, "invalid page id")
+		return apierror.JSON(c, http.StatusBadRequest, "invalid page id")
 	}
 
 	var req UpdatePageRequest
 	if err := c.Bind(&req); err != nil {
-		return ErrorJSON(c, http.StatusBadRequest, "invalid request body")
+		return apierror.JSON(c, http.StatusBadRequest, "invalid request body")
 	}
 
 	if len(req.Slugs) == 0 {
-		return ErrorJSON(c, http.StatusBadRequest, "at least one slug is required")
+		return apierror.JSON(c, http.StatusBadRequest, "at least one slug is required")
 	}
 
 	for i := range req.Slugs {
 		req.Slugs[i].Slug = strings.Trim(strings.TrimSpace(req.Slugs[i].Slug), "/")
 	}
 
+	seen := make(map[string]bool, len(req.Slugs))
+	for _, s := range req.Slugs {
+		if seen[s.LocaleCode] {
+			return apierror.JSON(c, http.StatusBadRequest, fmt.Sprintf("duplicate locale_code '%s' in slugs", s.LocaleCode))
+		}
+		seen[s.LocaleCode] = true
+	}
+
 	for _, s := range req.Seo {
 		if s.LocaleCode == "" {
-			return ErrorJSON(c, http.StatusBadRequest, "locale_code is required for each seo entry")
+			return apierror.JSON(c, http.StatusBadRequest, "locale_code is required for each seo entry")
 		}
 		if s.Title == "" {
-			return ErrorJSON(c, http.StatusBadRequest, "title is required for each seo entry")
+			return apierror.JSON(c, http.StatusBadRequest, "title is required for each seo entry")
 		}
 	}
 
@@ -524,9 +574,9 @@ func (h *PageHandler) Update(c *echo.Context) error {
 	existing, err := h.queries.GetPageByID(ctx, db.GetPageByIDParams{ID: pageID, SiteID: siteID})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrorJSON(c, http.StatusNotFound, "page not found")
+			return apierror.JSON(c, http.StatusNotFound, "page not found")
 		}
-		return InternalError(c, "failed to get page", err)
+		return apierror.Internal(c, "failed to get page", err)
 	}
 
 	layout := req.Layout
@@ -538,7 +588,7 @@ func (h *PageHandler) Update(c *echo.Context) error {
 	if req.PublishedAt != nil {
 		t, err := time.Parse(time.RFC3339, *req.PublishedAt)
 		if err != nil {
-			return ErrorJSON(c, http.StatusBadRequest, "invalid published_at format, use ISO 8601")
+			return apierror.JSON(c, http.StatusBadRequest, "invalid published_at format, use ISO 8601")
 		}
 		publishedAt = pgtype.Timestamptz{Time: t, Valid: true}
 	} else {
@@ -548,7 +598,7 @@ func (h *PageHandler) Update(c *echo.Context) error {
 	// Validate locales
 	siteLocales, err := h.queries.ListSiteLocales(ctx, siteID)
 	if err != nil {
-		return InternalError(c, "failed to get site locales", err)
+		return apierror.Internal(c, "failed to get site locales", err)
 	}
 	localeByCode := make(map[string]db.SiteLocale, len(siteLocales))
 	for _, l := range siteLocales {
@@ -556,12 +606,12 @@ func (h *PageHandler) Update(c *echo.Context) error {
 	}
 	for _, s := range req.Slugs {
 		if _, ok := localeByCode[s.LocaleCode]; !ok {
-			return ErrorJSON(c, http.StatusBadRequest, fmt.Sprintf("locale_code '%s' does not belong to this site", s.LocaleCode))
+			return apierror.JSON(c, http.StatusBadRequest, fmt.Sprintf("locale_code '%s' does not belong to this site", s.LocaleCode))
 		}
 	}
 	for _, s := range req.Seo {
 		if _, ok := localeByCode[s.LocaleCode]; !ok {
-			return ErrorJSON(c, http.StatusBadRequest, fmt.Sprintf("locale_code '%s' does not belong to this site", s.LocaleCode))
+			return apierror.JSON(c, http.StatusBadRequest, fmt.Sprintf("locale_code '%s' does not belong to this site", s.LocaleCode))
 		}
 	}
 
@@ -569,27 +619,27 @@ func (h *PageHandler) Update(c *echo.Context) error {
 	var parentID pgtype.Int8
 	if req.ParentID != nil {
 		if *req.ParentID == pageID {
-			return ErrorJSON(c, http.StatusBadRequest, "page cannot be its own parent")
+			return apierror.JSON(c, http.StatusBadRequest, "page cannot be its own parent")
 		}
 		parent, err := h.queries.GetPageByID(ctx, db.GetPageByIDParams{ID: *req.ParentID, SiteID: siteID})
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				return ErrorJSON(c, http.StatusBadRequest, "parent page not found in this site")
+				return apierror.JSON(c, http.StatusBadRequest, "parent page not found in this site")
 			}
-			return InternalError(c, "failed to get parent page", err)
+			return apierror.Internal(c, "failed to get parent page", err)
 		}
 		if parent.Type != existing.Type {
-			return ErrorJSON(c, http.StatusBadRequest, fmt.Sprintf("parent must be of type '%s'", existing.Type))
+			return apierror.JSON(c, http.StatusBadRequest, fmt.Sprintf("parent must be of type '%s'", existing.Type))
 		}
 		if existing.Type == "post" && parent.BlogID != existing.BlogID {
-			return ErrorJSON(c, http.StatusBadRequest, "parent post must belong to the same blog")
+			return apierror.JSON(c, http.StatusBadRequest, "parent post must belong to the same blog")
 		}
 		parentID = pgtype.Int8{Int64: *req.ParentID, Valid: true}
 	}
 
 	tx, err := h.pool.Begin(ctx)
 	if err != nil {
-		return InternalError(c, "failed to begin transaction", err)
+		return apierror.Internal(c, "failed to begin transaction", err)
 	}
 	defer tx.Rollback(ctx)
 
@@ -604,14 +654,14 @@ func (h *PageHandler) Update(c *echo.Context) error {
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrorJSON(c, http.StatusNotFound, "page not found")
+			return apierror.JSON(c, http.StatusNotFound, "page not found")
 		}
-		return InternalError(c, "failed to update page", err)
+		return apierror.Internal(c, "failed to update page", err)
 	}
 
 	// Replace slugs
 	if err := qtx.DeletePageSlugsByPageID(ctx, pageID); err != nil {
-		return InternalError(c, "failed to delete old slugs", err)
+		return apierror.Internal(c, "failed to delete old slugs", err)
 	}
 
 	var slugs []PageSlugResponse
@@ -623,7 +673,7 @@ func (h *PageHandler) Update(c *echo.Context) error {
 			Slug:     s.Slug,
 		})
 		if err != nil {
-			return InternalError(c, "failed to create page slug", err)
+			return apierror.Internal(c, "failed to create page slug", err)
 		}
 		slugs = append(slugs, PageSlugResponse{
 			ID:         slug.ID,
@@ -634,7 +684,7 @@ func (h *PageHandler) Update(c *echo.Context) error {
 
 	// Replace seo
 	if err := qtx.DeletePageSeoByPageID(ctx, pageID); err != nil {
-		return InternalError(c, "failed to delete old seo", err)
+		return apierror.Internal(c, "failed to delete old seo", err)
 	}
 
 	var seo []PageSeoResponse
@@ -651,7 +701,7 @@ func (h *PageHandler) Update(c *echo.Context) error {
 			Description: desc,
 		})
 		if err != nil {
-			return InternalError(c, "failed to create page seo", err)
+			return apierror.Internal(c, "failed to create page seo", err)
 		}
 		seo = append(seo, PageSeoResponse{
 			ID:          row.ID,
@@ -662,7 +712,7 @@ func (h *PageHandler) Update(c *echo.Context) error {
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return InternalError(c, "failed to commit transaction", err)
+		return apierror.Internal(c, "failed to commit transaction", err)
 	}
 
 	return c.JSON(http.StatusOK, toPageResponse(page, slugs, seo))
@@ -671,12 +721,12 @@ func (h *PageHandler) Update(c *echo.Context) error {
 func (h *PageHandler) Delete(c *echo.Context) error {
 	siteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		return ErrorJSON(c, http.StatusBadRequest, "invalid site id")
+		return apierror.JSON(c, http.StatusBadRequest, "invalid site id")
 	}
 
 	pageID, err := strconv.ParseInt(c.Param("pageId"), 10, 64)
 	if err != nil {
-		return ErrorJSON(c, http.StatusBadRequest, "invalid page id")
+		return apierror.JSON(c, http.StatusBadRequest, "invalid page id")
 	}
 
 	ctx := c.Request().Context()
@@ -684,13 +734,13 @@ func (h *PageHandler) Delete(c *echo.Context) error {
 	_, err = h.queries.GetPageByID(ctx, db.GetPageByIDParams{ID: pageID, SiteID: siteID})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrorJSON(c, http.StatusNotFound, "page not found")
+			return apierror.JSON(c, http.StatusNotFound, "page not found")
 		}
-		return InternalError(c, "failed to get page", err)
+		return apierror.Internal(c, "failed to get page", err)
 	}
 
 	if err := h.queries.DeletePage(ctx, db.DeletePageParams{ID: pageID, SiteID: siteID}); err != nil {
-		return InternalError(c, "failed to delete page", err)
+		return apierror.Internal(c, "failed to delete page", err)
 	}
 
 	return c.JSON(http.StatusNoContent, nil)
@@ -699,7 +749,7 @@ func (h *PageHandler) Delete(c *echo.Context) error {
 func (h *PageHandler) Routes(c *echo.Context) error {
 	siteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		return ErrorJSON(c, http.StatusBadRequest, "invalid site id")
+		return apierror.JSON(c, http.StatusBadRequest, "invalid site id")
 	}
 
 	ctx := c.Request().Context()
@@ -707,14 +757,14 @@ func (h *PageHandler) Routes(c *echo.Context) error {
 	_, err = h.queries.GetSiteByID(ctx, siteID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrorJSON(c, http.StatusNotFound, "site not found")
+			return apierror.JSON(c, http.StatusNotFound, "site not found")
 		}
-		return InternalError(c, "failed to get site", err)
+		return apierror.Internal(c, "failed to get site", err)
 	}
 
 	routes, err := buildRoutesMap(ctx, h.queries, siteID)
 	if err != nil {
-		return InternalError(c, err.Error(), nil)
+		return apierror.Internal(c, err.Error(), nil)
 	}
 
 	return c.JSON(http.StatusOK, RoutesResponse{Routes: routes})
@@ -790,27 +840,4 @@ func toSeoResponses(seoRows []db.GetPageSeoByPageIDRow, localeMap map[int64]db.S
 		})
 	}
 	return result
-}
-
-// shiftParamIndices shifts all $N parameter references in a WHERE clause by offset.
-// e.g. "id > $1 AND name = $2" with offset 1 becomes "id > $2 AND name = $3"
-func shiftParamIndices(clause string, offset int) string {
-	var result []byte
-	i := 0
-	for i < len(clause) {
-		if clause[i] == '$' && i+1 < len(clause) && clause[i+1] >= '0' && clause[i+1] <= '9' {
-			result = append(result, '$')
-			i++
-			num := 0
-			for i < len(clause) && clause[i] >= '0' && clause[i] <= '9' {
-				num = num*10 + int(clause[i]-'0')
-				i++
-			}
-			result = append(result, []byte(strconv.Itoa(num+offset))...)
-		} else {
-			result = append(result, clause[i])
-			i++
-		}
-	}
-	return string(result)
 }

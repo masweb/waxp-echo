@@ -43,6 +43,16 @@ WHERE page_id = $1;
 -- name: DeletePageSeoByPageID :exec
 DELETE FROM page_seo WHERE page_id = $1;
 
+-- name: GetPageSlugsByPageIDs :many
+SELECT id, page_id, locale_id, slug
+FROM page_slugs
+WHERE page_id = ANY($1::BIGINT[]);
+
+-- name: GetPageSeoByPageIDs :many
+SELECT id, page_id, locale_id, title, description
+FROM page_seo
+WHERE page_id = ANY($1::BIGINT[]);
+
 -- name: GetBlogByID :one
 SELECT id, site_id, created_at, updated_at
 FROM blogs

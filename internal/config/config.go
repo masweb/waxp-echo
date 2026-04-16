@@ -18,6 +18,7 @@ func Load() (*Config, error) {
 	env := os.Getenv("ENV")
 	if env == "" || env == "development" {
 		_ = godotenv.Load()
+		env = os.Getenv("ENV")
 	}
 
 	databaseURL := os.Getenv("DATABASE_URL")
@@ -35,7 +36,6 @@ func Load() (*Config, error) {
 		serverPort = ":8080"
 	}
 
-	env = os.Getenv("ENV")
 	if env == "" {
 		env = "development"
 	}

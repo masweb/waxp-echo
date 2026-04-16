@@ -133,3 +133,45 @@ func (q *Queries) ListSiteLocales(ctx context.Context, siteID int64) ([]SiteLoca
 	}
 	return items, nil
 }
+
+const listSiteLocalesBySiteIDs = `-- name: ListSiteLocalesBySiteIDs :many
+SELECT id, site_id, code, is_default, created_at
+FROM site_locales
+WHERE site_id = ANY($1::BIGINT[])
+ORDER BY is_default DESC, code ASC
+`
+
+func (q *Queries) ListSiteLocalesBySiteIDs(ctx context.Context, dollar_1 []int64) ([]SiteLocale, error) {
+	rows, err := q.db.Query(ctx, listSiteLocalesBySiteIDs, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SiteLocale
+	for rows.Next() {
+		var i SiteLocale
+		if err := rows.Scan(
+			&i.ID,
+			&i.SiteID,
+			&i.Code,
+			&i.IsDefault,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const unsetDefaultLocales = `-- name: UnsetDefaultLocales :exec
+UPDATE site_locales SET is_default = false WHERE site_id = $1 AND is_default = true
+`
+
+func (q *Queries) UnsetDefaultLocales(ctx context.Context, siteID int64) error {
+	_, err := q.db.Exec(ctx, unsetDefaultLocales, siteID)
+	return err
+}

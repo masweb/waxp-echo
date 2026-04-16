@@ -30,7 +30,9 @@ type Querier interface {
 	GetPageByID(ctx context.Context, arg GetPageByIDParams) (Page, error)
 	GetPageRoutes(ctx context.Context, siteID int64) ([]GetPageRoutesRow, error)
 	GetPageSeoByPageID(ctx context.Context, pageID int64) ([]GetPageSeoByPageIDRow, error)
+	GetPageSeoByPageIDs(ctx context.Context, dollar_1 []int64) ([]GetPageSeoByPageIDsRow, error)
 	GetPageSlugsByPageID(ctx context.Context, pageID int64) ([]PageSlug, error)
+	GetPageSlugsByPageIDs(ctx context.Context, dollar_1 []int64) ([]PageSlug, error)
 	GetPostRoutes(ctx context.Context, siteID int64) ([]GetPostRoutesRow, error)
 	GetRootPageBySite(ctx context.Context, siteID int64) (Page, error)
 	GetSectionCounter(ctx context.Context, siteID int64) (SectionCounter, error)
@@ -39,7 +41,9 @@ type Querier interface {
 	GetSiteLocaleByCodeAndSite(ctx context.Context, arg GetSiteLocaleByCodeAndSiteParams) (SiteLocale, error)
 	GetSiteLocaleByID(ctx context.Context, id int64) (SiteLocale, error)
 	ListSiteLocales(ctx context.Context, siteID int64) ([]SiteLocale, error)
+	ListSiteLocalesBySiteIDs(ctx context.Context, dollar_1 []int64) ([]SiteLocale, error)
 	ListSites(ctx context.Context, arg ListSitesParams) ([]Site, error)
+	UnsetDefaultLocales(ctx context.Context, siteID int64) error
 	UpdatePage(ctx context.Context, arg UpdatePageParams) (Page, error)
 	UpdateSite(ctx context.Context, arg UpdateSiteParams) (Site, error)
 }
