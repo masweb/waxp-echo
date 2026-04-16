@@ -10,6 +10,7 @@ import (
 
 type Querier interface {
 	CountSites(ctx context.Context) (int64, error)
+	CreateBlockCounter(ctx context.Context, siteID int64) (BlockCounter, error)
 	CreatePage(ctx context.Context, arg CreatePageParams) (Page, error)
 	CreatePageSeo(ctx context.Context, arg CreatePageSeoParams) (CreatePageSeoRow, error)
 	CreatePageSlug(ctx context.Context, arg CreatePageSlugParams) (PageSlug, error)
@@ -24,6 +25,7 @@ type Querier interface {
 	DeleteSiteLocaleByCode(ctx context.Context, arg DeleteSiteLocaleByCodeParams) error
 	GetBlogByID(ctx context.Context, arg GetBlogByIDParams) (Blog, error)
 	GetBlogRoutes(ctx context.Context, siteID int64) ([]GetBlogRoutesRow, error)
+	GetNextBlockID(ctx context.Context, siteID int64) (int64, error)
 	GetNextSectionID(ctx context.Context, siteID int64) (int64, error)
 	GetPageByID(ctx context.Context, arg GetPageByIDParams) (Page, error)
 	GetPageRoutes(ctx context.Context, siteID int64) ([]GetPageRoutesRow, error)

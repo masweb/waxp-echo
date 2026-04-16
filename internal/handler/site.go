@@ -248,6 +248,11 @@ func (h *SiteHandler) CreateWithDefaults(c *echo.Context) error {
 		return InternalError(c, "failed to create section counter", err)
 	}
 
+	_, err = qtx.CreateBlockCounter(ctx, site.ID)
+	if err != nil {
+		return InternalError(c, "failed to create block counter", err)
+	}
+
 	makeLayout := func() ([]byte, error) {
 		sectionIDs := make([]int64, 4)
 		for i := range sectionIDs {
@@ -257,11 +262,42 @@ func (h *SiteHandler) CreateWithDefaults(c *echo.Context) error {
 			}
 			sectionIDs[i] = id
 		}
+
+		blockIDs := make([]int64, 4)
+		for i := range blockIDs {
+			id, err := qtx.GetNextBlockID(ctx, site.ID)
+			if err != nil {
+				return nil, err
+			}
+			blockIDs[i] = id
+		}
+
+		defaultBlock := func(id int64) map[string]interface{} {
+			return map[string]interface{}{
+				"id":      id,
+				"type":    "Text",
+				"content": "La mare que va en calsonsillos",
+				"d":       map[string]int{"x": 1, "w": 8, "y": 1, "h": 8},
+				"t":       map[string]int{"x": 1, "w": 6, "y": 1, "h": 6},
+				"m":       map[string]int{"x": 1, "w": 4, "y": 1, "h": 4},
+			}
+		}
+
+		makeSection := func(id int64, blockID int64) map[string]interface{} {
+			return map[string]interface{}{
+				"id":      id,
+				"mobile":  map[string]int{"cols": 8, "rows": 12, "gap": 4},
+				"tablet":  map[string]int{"cols": 20, "rows": 12, "gap": 6},
+				"desktop": map[string]int{"cols": 24, "rows": 12, "gap": 8},
+				"blocks":  []interface{}{defaultBlock(blockID)},
+			}
+		}
+
 		defaultLayout := []map[string]interface{}{
-			{"id": sectionIDs[0], "mobile": map[string]int{"cols": 8, "rows": 12, "gap": 4}, "tablet": map[string]int{"cols": 20, "rows": 16, "gap": 6}, "desktop": map[string]int{"cols": 24, "rows": 20, "gap": 8}, "blocks": []interface{}{}},
-			{"id": sectionIDs[1], "mobile": map[string]int{"cols": 8, "rows": 12, "gap": 4}, "tablet": map[string]int{"cols": 20, "rows": 16, "gap": 6}, "desktop": map[string]int{"cols": 24, "rows": 20, "gap": 8}, "blocks": []interface{}{}},
-			{"id": sectionIDs[2], "mobile": map[string]int{"cols": 8, "rows": 12, "gap": 4}, "tablet": map[string]int{"cols": 20, "rows": 16, "gap": 6}, "desktop": map[string]int{"cols": 24, "rows": 20, "gap": 8}, "blocks": []interface{}{}},
-			{"id": sectionIDs[3], "mobile": map[string]int{"cols": 8, "rows": 12, "gap": 4}, "tablet": map[string]int{"cols": 12, "rows": 16, "gap": 6}, "desktop": map[string]int{"cols": 24, "rows": 20, "gap": 8}, "blocks": []interface{}{}},
+			makeSection(sectionIDs[0], blockIDs[0]),
+			makeSection(sectionIDs[1], blockIDs[1]),
+			makeSection(sectionIDs[2], blockIDs[2]),
+			makeSection(sectionIDs[3], blockIDs[3]),
 		}
 		return json.Marshal(defaultLayout)
 	}

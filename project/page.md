@@ -403,3 +403,29 @@ POST /api/sites/:id/sections/next-id
 | 400 | Site ID inválido |
 | 401 | Token missing, invalid or expired |
 | 404 | Site no encontrado |
+
+---
+
+## Next Block ID
+
+Obtiene el siguiente ID de bloque único para un site. Útil cuando el frontend necesita crear nuevos bloques y requiere un ID único del backend.
+
+```
+POST /api/sites/:id/blocks/next-id
+```
+
+**Response 200:**
+```json
+{
+  "id": 5
+}
+```
+
+> El contador de IDs es global por site y se persiste en la base de datos. Cada llamada incrementa el contador. Funciona igual que el contador de secciones: usa un `upsert` atómico sobre la tabla `block_counters`.
+
+**Errors:**
+| Status | When |
+|--------|------|
+| 400 | Site ID inválido |
+| 401 | Token missing, invalid or expired |
+| 404 | Site no encontrado |

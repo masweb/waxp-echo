@@ -20,6 +20,11 @@ type Block struct {
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 }
 
+type BlockCounter struct {
+	SiteID       int64 `json:"site_id"`
+	CurrentValue int64 `json:"current_value"`
+}
+
 type Blog struct {
 	ID        int64              `json:"id"`
 	SiteID    int64              `json:"site_id"`

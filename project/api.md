@@ -32,6 +32,8 @@
 | `PUT` | `/api/sites/:id/pages/:pageId` | Update page |
 | `DELETE` | `/api/sites/:id/pages/:pageId` | Delete page |
 | `GET` | `/api/sites/:id/routes` | Get all routes (for vue-router) |
+| `POST` | `/api/sites/:id/sections/next-id` | Get next unique section ID |
+| `POST` | `/api/sites/:id/blocks/next-id` | Get next unique block ID |
 
 ---
 

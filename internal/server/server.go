@@ -62,6 +62,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 
 	pageHandler := handler.NewPageHandler(queries, pool)
 	sectionHandler := handler.NewSectionHandler(queries)
+	blockHandler := handler.NewBlockHandler(queries)
 	sites.POST("/:id/pages", pageHandler.Create)
 	sites.GET("/:id/pages", pageHandler.List)
 	sites.GET("/:id/pages/:pageId", pageHandler.GetByID)
@@ -69,6 +70,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	sites.DELETE("/:id/pages/:pageId", pageHandler.Delete)
 	sites.GET("/:id/routes", pageHandler.Routes)
 	sites.POST("/:id/sections/next-id", sectionHandler.GetNextSectionID)
+	sites.POST("/:id/blocks/next-id", blockHandler.GetNextBlockID)
 
 	return &Server{
 		Echo:   e,
