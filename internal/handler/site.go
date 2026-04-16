@@ -258,10 +258,10 @@ func (h *SiteHandler) CreateWithDefaults(c *echo.Context) error {
 			sectionIDs[i] = id
 		}
 		defaultLayout := []map[string]interface{}{
-			{"id": sectionIDs[0], "mobile": map[string]int{"cols": 8, "rows": 12}, "tablet": map[string]int{"cols": 12, "rows": 16}, "desktop": map[string]int{"cols": 24, "rows": 20}, "blocks": []interface{}{}},
-			{"id": sectionIDs[1], "mobile": map[string]int{"cols": 8, "rows": 12}, "tablet": map[string]int{"cols": 12, "rows": 16}, "desktop": map[string]int{"cols": 24, "rows": 20}, "blocks": []interface{}{}},
-			{"id": sectionIDs[2], "mobile": map[string]int{"cols": 8, "rows": 12}, "tablet": map[string]int{"cols": 12, "rows": 16}, "desktop": map[string]int{"cols": 24, "rows": 20}, "blocks": []interface{}{}},
-			{"id": sectionIDs[3], "mobile": map[string]int{"cols": 8, "rows": 12}, "tablet": map[string]int{"cols": 12, "rows": 16}, "desktop": map[string]int{"cols": 24, "rows": 20}, "blocks": []interface{}{}},
+			{"id": sectionIDs[0], "mobile": map[string]int{"cols": 8, "rows": 12, "gap": 4}, "tablet": map[string]int{"cols": 20, "rows": 16, "gap": 6}, "desktop": map[string]int{"cols": 24, "rows": 20, "gap": 8}, "blocks": []interface{}{}},
+			{"id": sectionIDs[1], "mobile": map[string]int{"cols": 8, "rows": 12, "gap": 4}, "tablet": map[string]int{"cols": 20, "rows": 16, "gap": 6}, "desktop": map[string]int{"cols": 24, "rows": 20, "gap": 8}, "blocks": []interface{}{}},
+			{"id": sectionIDs[2], "mobile": map[string]int{"cols": 8, "rows": 12, "gap": 4}, "tablet": map[string]int{"cols": 20, "rows": 16, "gap": 6}, "desktop": map[string]int{"cols": 24, "rows": 20, "gap": 8}, "blocks": []interface{}{}},
+			{"id": sectionIDs[3], "mobile": map[string]int{"cols": 8, "rows": 12, "gap": 4}, "tablet": map[string]int{"cols": 12, "rows": 16, "gap": 6}, "desktop": map[string]int{"cols": 24, "rows": 20, "gap": 8}, "blocks": []interface{}{}},
 		}
 		return json.Marshal(defaultLayout)
 	}
