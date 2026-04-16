@@ -3,7 +3,6 @@ package handler
 import (
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -32,9 +31,9 @@ type AddLocaleRequest struct {
 }
 
 func (h *LocaleHandler) Add(c *echo.Context) error {
-	siteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	siteID, err := parseID(c.Param("id"))
 	if err != nil {
-		return apierror.JSON(c, http.StatusBadRequest, "invalid site id")
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
 	}
 
 	var req AddLocaleRequest
@@ -44,6 +43,10 @@ func (h *LocaleHandler) Add(c *echo.Context) error {
 
 	if req.Code == "" {
 		return apierror.JSON(c, http.StatusBadRequest, "code is required")
+	}
+
+	if err := validateLocaleCode(req.Code); err != nil {
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
 	}
 
 	_, err = h.queries.GetSiteByID(c.Request().Context(), siteID)
@@ -81,9 +84,9 @@ func (h *LocaleHandler) Add(c *echo.Context) error {
 }
 
 func (h *LocaleHandler) Remove(c *echo.Context) error {
-	siteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	siteID, err := parseID(c.Param("id"))
 	if err != nil {
-		return apierror.JSON(c, http.StatusBadRequest, "invalid site id")
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
 	}
 
 	localeCode := c.Param("localeCode")
@@ -115,5 +118,5 @@ func (h *LocaleHandler) Remove(c *echo.Context) error {
 		return apierror.Internal(c, "failed to delete locale", err)
 	}
 
-	return c.JSON(http.StatusNoContent, nil)
+	return c.NoContent(http.StatusNoContent)
 }

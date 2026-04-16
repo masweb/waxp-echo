@@ -95,9 +95,9 @@ type RoutesResponse struct {
 }
 
 func (h *PageHandler) Create(c *echo.Context) error {
-	siteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	siteID, err := parseID(c.Param("id"))
 	if err != nil {
-		return apierror.JSON(c, http.StatusBadRequest, "invalid site id")
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
 	}
 
 	var req CreatePageRequest
@@ -109,12 +109,22 @@ func (h *PageHandler) Create(c *echo.Context) error {
 		return apierror.JSON(c, http.StatusBadRequest, "type must be 'page' or 'post'")
 	}
 
+	if req.Type == "page" && req.BlogID != nil {
+		return apierror.JSON(c, http.StatusBadRequest, "blog_id is not allowed for pages")
+	}
+
 	if len(req.Slugs) == 0 {
 		return apierror.JSON(c, http.StatusBadRequest, "at least one slug is required")
 	}
 
 	for i := range req.Slugs {
+		if req.Slugs[i].LocaleCode == "" {
+			return apierror.JSON(c, http.StatusBadRequest, "locale_code is required for each slug")
+		}
 		req.Slugs[i].Slug = strings.Trim(strings.TrimSpace(req.Slugs[i].Slug), "/")
+		if err := validateSlug(req.Slugs[i].Slug); err != nil {
+			return apierror.JSON(c, http.StatusBadRequest, err.Error())
+		}
 		if req.Slugs[i].Slug == "" && req.ParentID != nil {
 			return apierror.JSON(c, http.StatusBadRequest, "slug cannot be empty for child pages")
 		}
@@ -135,6 +145,14 @@ func (h *PageHandler) Create(c *echo.Context) error {
 		if s.Title == "" {
 			return apierror.JSON(c, http.StatusBadRequest, "title is required for each seo entry")
 		}
+	}
+
+	seenSeo := make(map[string]bool, len(req.Seo))
+	for _, s := range req.Seo {
+		if seenSeo[s.LocaleCode] {
+			return apierror.JSON(c, http.StatusBadRequest, fmt.Sprintf("duplicate locale_code '%s' in seo", s.LocaleCode))
+		}
+		seenSeo[s.LocaleCode] = true
 	}
 
 	ctx := c.Request().Context()
@@ -252,11 +270,6 @@ func (h *PageHandler) Create(c *echo.Context) error {
 		return apierror.Internal(c, "failed to create page", err)
 	}
 
-	localeByID := make(map[int64]db.SiteLocale, len(siteLocales))
-	for _, l := range siteLocales {
-		localeByID[l.ID] = l
-	}
-
 	var slugs []PageSlugResponse
 	for _, s := range req.Slugs {
 		loc := localeByCode[s.LocaleCode]
@@ -307,14 +320,14 @@ func (h *PageHandler) Create(c *echo.Context) error {
 }
 
 func (h *PageHandler) GetByID(c *echo.Context) error {
-	siteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	siteID, err := parseID(c.Param("id"))
 	if err != nil {
-		return apierror.JSON(c, http.StatusBadRequest, "invalid site id")
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
 	}
 
-	pageID, err := strconv.ParseInt(c.Param("pageId"), 10, 64)
+	pageID, err := parseID(c.Param("pageId"))
 	if err != nil {
-		return apierror.JSON(c, http.StatusBadRequest, "invalid page id")
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
 	}
 
 	ctx := c.Request().Context()
@@ -350,9 +363,9 @@ func (h *PageHandler) GetByID(c *echo.Context) error {
 }
 
 func (h *PageHandler) List(c *echo.Context) error {
-	siteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	siteID, err := parseID(c.Param("id"))
 	if err != nil {
-		return apierror.JSON(c, http.StatusBadRequest, "invalid site id")
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
 	}
 
 	ctx := c.Request().Context()
@@ -528,14 +541,14 @@ func (h *PageHandler) List(c *echo.Context) error {
 }
 
 func (h *PageHandler) Update(c *echo.Context) error {
-	siteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	siteID, err := parseID(c.Param("id"))
 	if err != nil {
-		return apierror.JSON(c, http.StatusBadRequest, "invalid site id")
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
 	}
 
-	pageID, err := strconv.ParseInt(c.Param("pageId"), 10, 64)
+	pageID, err := parseID(c.Param("pageId"))
 	if err != nil {
-		return apierror.JSON(c, http.StatusBadRequest, "invalid page id")
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
 	}
 
 	var req UpdatePageRequest
@@ -548,7 +561,13 @@ func (h *PageHandler) Update(c *echo.Context) error {
 	}
 
 	for i := range req.Slugs {
+		if req.Slugs[i].LocaleCode == "" {
+			return apierror.JSON(c, http.StatusBadRequest, "locale_code is required for each slug")
+		}
 		req.Slugs[i].Slug = strings.Trim(strings.TrimSpace(req.Slugs[i].Slug), "/")
+		if err := validateSlug(req.Slugs[i].Slug); err != nil {
+			return apierror.JSON(c, http.StatusBadRequest, err.Error())
+		}
 	}
 
 	seen := make(map[string]bool, len(req.Slugs))
@@ -566,6 +585,14 @@ func (h *PageHandler) Update(c *echo.Context) error {
 		if s.Title == "" {
 			return apierror.JSON(c, http.StatusBadRequest, "title is required for each seo entry")
 		}
+	}
+
+	seenSeo := make(map[string]bool, len(req.Seo))
+	for _, s := range req.Seo {
+		if seenSeo[s.LocaleCode] {
+			return apierror.JSON(c, http.StatusBadRequest, fmt.Sprintf("duplicate locale_code '%s' in seo", s.LocaleCode))
+		}
+		seenSeo[s.LocaleCode] = true
 	}
 
 	ctx := c.Request().Context()
@@ -719,37 +746,31 @@ func (h *PageHandler) Update(c *echo.Context) error {
 }
 
 func (h *PageHandler) Delete(c *echo.Context) error {
-	siteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	siteID, err := parseID(c.Param("id"))
 	if err != nil {
-		return apierror.JSON(c, http.StatusBadRequest, "invalid site id")
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
 	}
 
-	pageID, err := strconv.ParseInt(c.Param("pageId"), 10, 64)
+	pageID, err := parseID(c.Param("pageId"))
 	if err != nil {
-		return apierror.JSON(c, http.StatusBadRequest, "invalid page id")
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
 	}
 
-	ctx := c.Request().Context()
-
-	_, err = h.queries.GetPageByID(ctx, db.GetPageByIDParams{ID: pageID, SiteID: siteID})
+	_, err = h.queries.DeletePage(c.Request().Context(), db.DeletePageParams{ID: pageID, SiteID: siteID})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return apierror.JSON(c, http.StatusNotFound, "page not found")
 		}
-		return apierror.Internal(c, "failed to get page", err)
-	}
-
-	if err := h.queries.DeletePage(ctx, db.DeletePageParams{ID: pageID, SiteID: siteID}); err != nil {
 		return apierror.Internal(c, "failed to delete page", err)
 	}
 
-	return c.JSON(http.StatusNoContent, nil)
+	return c.NoContent(http.StatusNoContent)
 }
 
 func (h *PageHandler) Routes(c *echo.Context) error {
-	siteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	siteID, err := parseID(c.Param("id"))
 	if err != nil {
-		return apierror.JSON(c, http.StatusBadRequest, "invalid site id")
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
 	}
 
 	ctx := c.Request().Context()

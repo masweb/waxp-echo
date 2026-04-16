@@ -46,13 +46,14 @@ func (q *Queries) CreateSite(ctx context.Context, arg CreateSiteParams) (Site, e
 	return i, err
 }
 
-const deleteSite = `-- name: DeleteSite :exec
-DELETE FROM sites WHERE id = $1
+const deleteSite = `-- name: DeleteSite :one
+DELETE FROM sites WHERE id = $1 RETURNING id
 `
 
-func (q *Queries) DeleteSite(ctx context.Context, id int64) error {
-	_, err := q.db.Exec(ctx, deleteSite, id)
-	return err
+func (q *Queries) DeleteSite(ctx context.Context, id int64) (int64, error) {
+	row := q.db.QueryRow(ctx, deleteSite, id)
+	err := row.Scan(&id)
+	return id, err
 }
 
 const getSiteByDomain = `-- name: GetSiteByDomain :one

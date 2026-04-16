@@ -90,15 +90,31 @@ func (h *SiteHandler) CreateWithDefaults(c *echo.Context) error {
 		return apierror.JSON(c, http.StatusBadRequest, "name and domain are required")
 	}
 
+	if len(req.Name) > 255 {
+		return apierror.JSON(c, http.StatusBadRequest, "name must be at most 255 characters")
+	}
+
+	if err := validateDomain(req.Domain); err != nil {
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
+	}
+
 	if len(req.Locales) == 0 {
 		return apierror.JSON(c, http.StatusBadRequest, "at least one locale is required")
 	}
 
 	defaultCount := 0
+	seenLocales := make(map[string]bool, len(req.Locales))
 	for _, l := range req.Locales {
 		if l.Code == "" {
 			return apierror.JSON(c, http.StatusBadRequest, "locale code is required")
 		}
+		if err := validateLocaleCode(l.Code); err != nil {
+			return apierror.JSON(c, http.StatusBadRequest, err.Error())
+		}
+		if seenLocales[l.Code] {
+			return apierror.JSON(c, http.StatusBadRequest, fmt.Sprintf("duplicate locale code '%s'", l.Code))
+		}
+		seenLocales[l.Code] = true
 		if l.IsDefault {
 			defaultCount++
 		}
@@ -111,6 +127,10 @@ func (h *SiteHandler) CreateWithDefaults(c *echo.Context) error {
 	options := req.Options
 	if options == nil {
 		options = json.RawMessage(`{}`)
+	}
+
+	if err := validateJSON(options); err != nil {
+		return apierror.JSON(c, http.StatusBadRequest, "options: "+err.Error())
 	}
 
 	ctx := c.Request().Context()
@@ -292,9 +312,9 @@ func (h *SiteHandler) CreateWithDefaults(c *echo.Context) error {
 }
 
 func (h *SiteHandler) GetByID(c *echo.Context) error {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := parseID(c.Param("id"))
 	if err != nil {
-		return apierror.JSON(c, http.StatusBadRequest, "invalid id")
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
 	}
 
 	ctx := c.Request().Context()
@@ -501,9 +521,9 @@ func (h *SiteHandler) List(c *echo.Context) error {
 }
 
 func (h *SiteHandler) Update(c *echo.Context) error {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := parseID(c.Param("id"))
 	if err != nil {
-		return apierror.JSON(c, http.StatusBadRequest, "invalid id")
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
 	}
 
 	var req UpdateSiteRequest
@@ -515,9 +535,21 @@ func (h *SiteHandler) Update(c *echo.Context) error {
 		return apierror.JSON(c, http.StatusBadRequest, "name and domain are required")
 	}
 
+	if len(req.Name) > 255 {
+		return apierror.JSON(c, http.StatusBadRequest, "name must be at most 255 characters")
+	}
+
+	if err := validateDomain(req.Domain); err != nil {
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
+	}
+
 	options := req.Options
 	if options == nil {
 		options = json.RawMessage(`{}`)
+	}
+
+	if err := validateJSON(options); err != nil {
+		return apierror.JSON(c, http.StatusBadRequest, "options: "+err.Error())
 	}
 
 	site, err := h.queries.UpdateSite(c.Request().Context(), db.UpdateSiteParams{
@@ -552,24 +584,20 @@ func (h *SiteHandler) Update(c *echo.Context) error {
 }
 
 func (h *SiteHandler) Delete(c *echo.Context) error {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := parseID(c.Param("id"))
 	if err != nil {
-		return apierror.JSON(c, http.StatusBadRequest, "invalid id")
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
 	}
 
-	_, err = h.queries.GetSiteByID(c.Request().Context(), id)
+	_, err = h.queries.DeleteSite(c.Request().Context(), id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return apierror.JSON(c, http.StatusNotFound, "site not found")
 		}
-		return apierror.Internal(c, "failed to get site", err)
-	}
-
-	if err := h.queries.DeleteSite(c.Request().Context(), id); err != nil {
 		return apierror.Internal(c, "failed to delete site", err)
 	}
 
-	return c.JSON(http.StatusNoContent, nil)
+	return c.NoContent(http.StatusNoContent)
 }
 
 func toLocaleResponses(locales []db.SiteLocale) []LocaleResponse {

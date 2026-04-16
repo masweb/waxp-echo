@@ -113,8 +113,8 @@ func (q *Queries) CreatePageSlug(ctx context.Context, arg CreatePageSlugParams) 
 	return i, err
 }
 
-const deletePage = `-- name: DeletePage :exec
-DELETE FROM pages WHERE id = $1 AND site_id = $2
+const deletePage = `-- name: DeletePage :one
+DELETE FROM pages WHERE id = $1 AND site_id = $2 RETURNING id
 `
 
 type DeletePageParams struct {
@@ -122,9 +122,11 @@ type DeletePageParams struct {
 	SiteID int64 `json:"site_id"`
 }
 
-func (q *Queries) DeletePage(ctx context.Context, arg DeletePageParams) error {
-	_, err := q.db.Exec(ctx, deletePage, arg.ID, arg.SiteID)
-	return err
+func (q *Queries) DeletePage(ctx context.Context, arg DeletePageParams) (int64, error) {
+	row := q.db.QueryRow(ctx, deletePage, arg.ID, arg.SiteID)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }
 
 const deletePageSeoByPageID = `-- name: DeletePageSeoByPageID :exec

@@ -17,10 +17,10 @@ type Querier interface {
 	CreateSectionCounter(ctx context.Context, siteID int64) (SectionCounter, error)
 	CreateSite(ctx context.Context, arg CreateSiteParams) (Site, error)
 	CreateSiteLocale(ctx context.Context, arg CreateSiteLocaleParams) (SiteLocale, error)
-	DeletePage(ctx context.Context, arg DeletePageParams) error
+	DeletePage(ctx context.Context, arg DeletePageParams) (int64, error)
 	DeletePageSeoByPageID(ctx context.Context, pageID int64) error
 	DeletePageSlugsByPageID(ctx context.Context, pageID int64) error
-	DeleteSite(ctx context.Context, id int64) error
+	DeleteSite(ctx context.Context, id int64) (int64, error)
 	DeleteSiteLocale(ctx context.Context, arg DeleteSiteLocaleParams) error
 	DeleteSiteLocaleByCode(ctx context.Context, arg DeleteSiteLocaleByCodeParams) error
 	GetBlogByID(ctx context.Context, arg GetBlogByIDParams) (Blog, error)

@@ -26,6 +26,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 
 	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
+	e.Use(middleware.BodyLimit(2 * 1024 * 1024))
 
 	if cfg.Env == "development" {
 		e.Use(middleware.CORSWithConfig(middleware.CORSConfig{

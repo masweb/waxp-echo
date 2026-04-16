@@ -25,5 +25,5 @@ SET name = $1, domain = $2, options = $3, updated_at = NOW()
 WHERE id = $4
 RETURNING id, name, domain, options, created_at, updated_at;
 
--- name: DeleteSite :exec
-DELETE FROM sites WHERE id = $1;
+-- name: DeleteSite :one
+DELETE FROM sites WHERE id = $1 RETURNING id;

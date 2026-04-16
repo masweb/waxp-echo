@@ -14,8 +14,8 @@ SET parent_id = $1, layout = $2, published_at = $3, updated_at = NOW()
 WHERE id = $4 AND site_id = $5
 RETURNING id, site_id, blog_id, parent_id, type, layout, published_at, created_at, updated_at;
 
--- name: DeletePage :exec
-DELETE FROM pages WHERE id = $1 AND site_id = $2;
+-- name: DeletePage :one
+DELETE FROM pages WHERE id = $1 AND site_id = $2 RETURNING id;
 
 -- name: CreatePageSlug :one
 INSERT INTO page_slugs (page_id, locale_id, slug)

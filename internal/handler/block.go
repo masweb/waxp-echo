@@ -3,7 +3,6 @@ package handler
 import (
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v5"
@@ -25,9 +24,9 @@ type NextBlockIDResponse struct {
 }
 
 func (h *BlockHandler) GetNextBlockID(c *echo.Context) error {
-	siteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	siteID, err := parseID(c.Param("id"))
 	if err != nil {
-		return apierror.JSON(c, http.StatusBadRequest, "invalid site id")
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
 	}
 
 	ctx := c.Request().Context()

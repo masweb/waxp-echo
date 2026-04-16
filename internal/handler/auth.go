@@ -56,8 +56,16 @@ func (h *AuthHandler) Register(c *echo.Context) error {
 		return apierror.JSON(c, http.StatusBadRequest, "email and password are required")
 	}
 
+	if err := validateEmail(req.Email); err != nil {
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
+	}
+
 	if len(req.Password) < 8 {
 		return apierror.JSON(c, http.StatusBadRequest, "password must be at least 8 characters")
+	}
+
+	if len(req.Password) > 72 {
+		return apierror.JSON(c, http.StatusBadRequest, "password must be at most 72 characters")
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
@@ -98,6 +106,10 @@ func (h *AuthHandler) Login(c *echo.Context) error {
 		return apierror.JSON(c, http.StatusBadRequest, "email and password are required")
 	}
 
+	if err := validateEmail(req.Email); err != nil {
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
+	}
+
 	user, err := h.queries.GetUserByEmail(c.Request().Context(), req.Email)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -122,8 +134,14 @@ func (h *AuthHandler) Login(c *echo.Context) error {
 }
 
 func (h *AuthHandler) Me(c *echo.Context) error {
-	userID := c.Get("user_id").(int64)
-	email := c.Get("email").(string)
+	userID, ok := c.Get("user_id").(int64)
+	if !ok {
+		return apierror.JSON(c, http.StatusUnauthorized, "unauthorized")
+	}
+	email, ok := c.Get("email").(string)
+	if !ok {
+		return apierror.JSON(c, http.StatusUnauthorized, "unauthorized")
+	}
 
 	return c.JSON(http.StatusOK, UserResponse{
 		ID:    userID,
