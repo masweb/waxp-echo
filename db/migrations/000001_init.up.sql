@@ -74,19 +74,6 @@ CREATE TABLE page_seo (
     UNIQUE(page_id, locale_id)
 );
 
-CREATE TABLE blocks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    site_id BIGINT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
-    block_group UUID NOT NULL,
-    locale_id BIGINT NOT NULL REFERENCES site_locales(id) ON DELETE CASCADE,
-    type VARCHAR(50) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    content JSONB NOT NULL DEFAULT '{}',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(block_group, locale_id)
-);
-
 CREATE TABLE section_counters (
     site_id BIGINT NOT NULL PRIMARY KEY REFERENCES sites(id) ON DELETE CASCADE,
     current_value BIGINT NOT NULL DEFAULT 0
@@ -97,17 +84,26 @@ CREATE TABLE block_counters (
     current_value BIGINT NOT NULL DEFAULT 0
 );
 
+CREATE TABLE media (
+    id BIGSERIAL PRIMARY KEY,
+    filename VARCHAR(500) NOT NULL,
+    mime_type VARCHAR(100) NOT NULL,
+    size BIGINT NOT NULL,
+    url VARCHAR(1000) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX idx_pages_site ON pages(site_id);
+CREATE INDEX idx_pages_site_id_id ON pages(site_id, id);
 CREATE INDEX idx_pages_blog ON pages(blog_id);
 CREATE INDEX idx_pages_parent ON pages(parent_id);
 CREATE INDEX idx_pages_type ON pages(type);
 CREATE INDEX idx_page_slugs_slug ON page_slugs(slug);
 CREATE INDEX idx_page_seo_page ON page_seo(page_id);
 CREATE INDEX idx_page_seo_locale ON page_seo(locale_id);
-CREATE INDEX idx_blocks_site ON blocks(site_id);
-CREATE INDEX idx_blocks_group ON blocks(block_group);
 CREATE INDEX idx_pages_layout ON pages USING gin(layout);
 CREATE INDEX idx_section_counters_site ON section_counters(site_id);
+CREATE INDEX idx_media_created_at ON media(created_at DESC);
 
 INSERT INTO users (email, password_hash)
 VALUES ('admin@waxp.com', '$2a$10$ysLGEY/eUOniH2eVzRGpQ.SmVS7PfQZOLaQ4QGgfcpF0E8uO98Tz6')

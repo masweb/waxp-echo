@@ -8,18 +8,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type Block struct {
-	ID         pgtype.UUID        `json:"id"`
-	SiteID     int64              `json:"site_id"`
-	BlockGroup pgtype.UUID        `json:"block_group"`
-	LocaleID   int64              `json:"locale_id"`
-	Type       string             `json:"type"`
-	Name       string             `json:"name"`
-	Content    []byte             `json:"content"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
-}
-
 type BlockCounter struct {
 	SiteID       int64 `json:"site_id"`
 	CurrentValue int64 `json:"current_value"`
@@ -37,6 +25,15 @@ type BlogSlug struct {
 	BlogID   int64  `json:"blog_id"`
 	LocaleID int64  `json:"locale_id"`
 	Slug     string `json:"slug"`
+}
+
+type Medium struct {
+	ID        int64              `json:"id"`
+	Filename  string             `json:"filename"`
+	MimeType  string             `json:"mime_type"`
+	Size      int64              `json:"size"`
+	Url       string             `json:"url"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 type Page struct {

@@ -26,7 +26,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 
 	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
-	e.Use(middleware.BodyLimit(2 * 1024 * 1024))
+	e.Use(middleware.BodyLimit(10 * 1024 * 1024))
 
 	if cfg.Env == "development" {
 		e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
@@ -63,7 +63,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 
 	pageHandler := handler.NewPageHandler(queries, pool)
 	sectionHandler := handler.NewSectionHandler(queries)
-	blockHandler := handler.NewBlockHandler(queries)
+	mediaHandler := handler.NewMediaHandler(queries, cfg.MediaDir)
 	sites.POST("/:id/pages", pageHandler.Create)
 	sites.GET("/:id/pages", pageHandler.List)
 	sites.GET("/:id/pages/:pageId", pageHandler.GetByID)
@@ -71,7 +71,15 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	sites.DELETE("/:id/pages/:pageId", pageHandler.Delete)
 	sites.GET("/:id/routes", pageHandler.Routes)
 	sites.POST("/:id/sections/next-id", sectionHandler.GetNextSectionID)
-	sites.POST("/:id/blocks/next-id", blockHandler.GetNextBlockID)
+	sites.POST("/:id/blocks/next-id", handler.NewBlockHandler(queries).GetNextBlockID)
+
+	media := protected.Group("/media")
+	media.POST("", mediaHandler.Upload)
+	media.GET("", mediaHandler.List)
+	media.GET("/:id", mediaHandler.GetByID)
+	media.DELETE("/:id", mediaHandler.Delete)
+
+	e.GET("/media/:name", handler.ServeMedia(cfg.MediaDir))
 
 	return &Server{
 		Echo:   e,

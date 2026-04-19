@@ -1,6 +1,6 @@
 -- name: CreateSectionCounter :one
 INSERT INTO section_counters (site_id, current_value)
-VALUES ($1, 0)
+VALUES ($1, 2)
 RETURNING site_id, current_value;
 
 -- name: GetSectionCounter :one

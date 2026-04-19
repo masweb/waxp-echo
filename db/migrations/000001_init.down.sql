@@ -1,6 +1,6 @@
+DROP TABLE IF EXISTS media;
 DROP TABLE IF EXISTS block_counters;
 DROP TABLE IF EXISTS section_counters;
-DROP TABLE IF EXISTS blocks;
 DROP TABLE IF EXISTS page_seo;
 DROP TABLE IF EXISTS page_slugs;
 DROP TABLE IF EXISTS pages;

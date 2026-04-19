@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/joho/godotenv"
 )
@@ -11,6 +12,7 @@ type Config struct {
 	DatabaseURL string
 	JWTSecret   string
 	ServerPort  string
+	MediaDir    string
 	Env         string
 }
 
@@ -40,10 +42,20 @@ func Load() (*Config, error) {
 		env = "development"
 	}
 
+	mediaDir := os.Getenv("MEDIA_DIR")
+	if mediaDir == "" {
+		mediaDir = "./uploads"
+	}
+	mediaDir, err := filepath.Abs(mediaDir)
+	if err != nil {
+		return nil, fmt.Errorf("invalid MEDIA_DIR: %w", err)
+	}
+
 	return &Config{
 		DatabaseURL: databaseURL,
 		JWTSecret:   jwtSecret,
 		ServerPort:  serverPort,
+		MediaDir:    mediaDir,
 		Env:         env,
 	}, nil
 }

@@ -11,7 +11,7 @@ import (
 
 const createBlockCounter = `-- name: CreateBlockCounter :one
 INSERT INTO block_counters (site_id, current_value)
-VALUES ($1, 0)
+VALUES ($1, 2)
 RETURNING site_id, current_value
 `
 

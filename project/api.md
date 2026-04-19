@@ -35,11 +35,21 @@
 | `POST` | `/api/sites/:id/sections/next-id` | Get next unique section ID |
 | `POST` | `/api/sites/:id/blocks/next-id` | Get next unique block ID |
 
+## Media
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/media` | Upload media file |
+| `GET` | `/api/media` | List media (paginated) |
+| `GET` | `/api/media/:id` | Get media |
+| `DELETE` | `/api/media/:id` | Delete media |
+| `GET` | `/media/:name` | Serve media file (public) |
+
 ---
 
 ## Authentication
 
-Todas las rutas de Sites, Pages y Locales requieren autenticación JWT:
+Todas las rutas de Sites, Pages, Locales y Media requieren autenticación JWT:
 
 ```
 Authorization: Bearer <token>

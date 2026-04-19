@@ -9,14 +9,17 @@ import (
 )
 
 type Querier interface {
+	CountMedia(ctx context.Context) (int64, error)
 	CountSites(ctx context.Context) (int64, error)
 	CreateBlockCounter(ctx context.Context, siteID int64) (BlockCounter, error)
+	CreateMedia(ctx context.Context, arg CreateMediaParams) (Medium, error)
 	CreatePage(ctx context.Context, arg CreatePageParams) (Page, error)
 	CreatePageSeo(ctx context.Context, arg CreatePageSeoParams) (CreatePageSeoRow, error)
 	CreatePageSlug(ctx context.Context, arg CreatePageSlugParams) (PageSlug, error)
 	CreateSectionCounter(ctx context.Context, siteID int64) (SectionCounter, error)
 	CreateSite(ctx context.Context, arg CreateSiteParams) (Site, error)
 	CreateSiteLocale(ctx context.Context, arg CreateSiteLocaleParams) (SiteLocale, error)
+	DeleteMedia(ctx context.Context, id int64) (Medium, error)
 	DeletePage(ctx context.Context, arg DeletePageParams) (int64, error)
 	DeletePageSeoByPageID(ctx context.Context, pageID int64) error
 	DeletePageSlugsByPageID(ctx context.Context, pageID int64) error
@@ -25,6 +28,7 @@ type Querier interface {
 	DeleteSiteLocaleByCode(ctx context.Context, arg DeleteSiteLocaleByCodeParams) error
 	GetBlogByID(ctx context.Context, arg GetBlogByIDParams) (Blog, error)
 	GetBlogRoutes(ctx context.Context, siteID int64) ([]GetBlogRoutesRow, error)
+	GetMediaByID(ctx context.Context, id int64) (Medium, error)
 	GetNextBlockID(ctx context.Context, siteID int64) (int64, error)
 	GetNextSectionID(ctx context.Context, siteID int64) (int64, error)
 	GetPageByID(ctx context.Context, arg GetPageByIDParams) (Page, error)
@@ -40,6 +44,7 @@ type Querier interface {
 	GetSiteByID(ctx context.Context, id int64) (Site, error)
 	GetSiteLocaleByCodeAndSite(ctx context.Context, arg GetSiteLocaleByCodeAndSiteParams) (SiteLocale, error)
 	GetSiteLocaleByID(ctx context.Context, id int64) (SiteLocale, error)
+	ListMedia(ctx context.Context, arg ListMediaParams) ([]Medium, error)
 	ListSiteLocales(ctx context.Context, siteID int64) ([]SiteLocale, error)
 	ListSiteLocalesBySiteIDs(ctx context.Context, dollar_1 []int64) ([]SiteLocale, error)
 	ListSites(ctx context.Context, arg ListSitesParams) ([]Site, error)

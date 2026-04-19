@@ -10,6 +10,8 @@ Authorization: Bearer <token>
 
 ## Create Site
 
+Crea un site con sus páginas por defecto (raíz `/` y `404`) en una sola transacción. Requiere al menos un locale.
+
 ```
 POST /api/sites
 ```
@@ -19,6 +21,7 @@ POST /api/sites
 {
   "name": "Mi Blog",
   "domain": "miblog.com",
+  "options": {},
   "locales": [
     { "code": "es", "is_default": true },
     { "code": "en", "is_default": false }
@@ -28,9 +31,10 @@ POST /api/sites
 
 | Campo | Tipo | Requerido | Descripción |
 |-------|------|-----------|-------------|
-| `name` | string | Sí | Nombre del site |
+| `name` | string | Sí | Nombre del site (máx 255 caracteres) |
 | `domain` | string | Sí | Dominio del site (único) |
-| `locales` | array | No | Idiomas del site. Si se omite, se crea sin locales |
+| `options` | object | No | Opciones del site (JSON). Por defecto `{}` |
+| `locales` | array | **Sí** | Al menos un locale es requerido |
 
 **Objeto locale:**
 
@@ -42,62 +46,10 @@ POST /api/sites
 **Reglas:**
 - Un site debe tener **como máximo un** locale con `is_default: true`.
 - No pueden repetirse `code` dentro del mismo site.
-- Los locales se insertan en la tabla `site_locales` junto con la creación del site, en una **transacción atómica**. Si falla la inserción de locales, no se crea el site.
-
-**Response 201:**
-```json
-{
-  "id": 1,
-  "name": "Mi Blog",
-  "domain": "miblog.com",
-  "locales": [
-    { "id": 1, "code": "es", "is_default": true },
-    { "id": 2, "code": "en", "is_default": false }
-  ]
-}
-```
-
-**Errors:**
-| Status | When |
-|--------|------|
-| 400 | Body inválido, name o domain vacíos, locale sin code, más de un is_default |
-| 401 | Token missing, invalid or expired |
-| 409 | Domain ya existe, código de locale duplicado |
-
----
-
-## Create Site with Defaults
-
-Crea un site con sus páginas por defecto (raíz `/` y `404`) en una sola transacción. Requiere al menos un locale.
-
-```
-POST /api/sites/init
-```
-
-**Body:**
-```json
-{
-  "name": "Mi Blog",
-  "domain": "miblog.com",
-  "locales": [
-    { "code": "es", "is_default": true },
-    { "code": "en", "is_default": false }
-  ]
-}
-```
-
-| Campo | Tipo | Requerido | Descripción |
-|-------|------|-----------|-------------|
-| `name` | string | Sí | Nombre del site |
-| `domain` | string | Sí | Dominio del site (único) |
-| `locales` | array | **Sí** | Al menos un locale es requerido |
-
-**Reglas:**
-- Mismas reglas de locales que `POST /api/sites`.
 - Se crean automáticamente dos páginas publicadas:
   - **Raíz** (`slug: ""`) — una entrada por cada locale.
   - **404** (`slug: "404"`) — una entrada por cada locale, mismo nombre en todos los idiomas.
-- Toda la operación (site + locales + páginas + slugs) es atómica.
+- Toda la operación (site + locales + páginas + slugs + SEO) es atómica.
 
 **Response 201:**
 ```json
@@ -105,9 +57,10 @@ POST /api/sites/init
   "id": 1,
   "name": "Mi Blog",
   "domain": "miblog.com",
+  "options": {},
   "locales": [
-    { "id": 1, "code": "es", "is_default": true },
-    { "id": 2, "code": "en", "is_default": false }
+    { "code": "es", "is_default": true },
+    { "code": "en", "is_default": false }
   ],
   "pages": [
     { "id": 1, "site_id": 1, "type": "page", "slug": "", "locale_code": "es" },
@@ -121,7 +74,7 @@ POST /api/sites/init
 **Errors:**
 | Status | When |
 |--------|------|
-| 400 | Body inválido, name o domain vacíos, locales vacío, locale sin code, más de un is_default |
+| 400 | Body inválido, name o domain vacíos, locales vacío, locale sin code, más de un is_default, options JSON inválido |
 | 401 | Token missing, invalid or expired |
 | 409 | Domain ya existe, código de locale duplicado |
 
@@ -145,23 +98,25 @@ Ver [Paginación](./pagination.md) para detalle del comportamiento.
 ```json
 {
   "data": [
-    {
-      "id": 1,
-      "name": "Mi Blog",
-      "domain": "miblog.com",
-      "locales": [
-        { "id": 1, "code": "es", "is_default": true },
-        { "id": 2, "code": "en", "is_default": false }
-      ]
-    },
-    {
-      "id": 2,
-      "name": "Tienda",
-      "domain": "tienda.com",
-      "locales": [
-        { "id": 3, "code": "es", "is_default": true }
-      ]
-    }
+      {
+        "id": 1,
+        "name": "Mi Blog",
+        "domain": "miblog.com",
+        "options": {},
+        "locales": [
+          { "code": "es", "is_default": true },
+          { "code": "en", "is_default": false }
+        ]
+      },
+      {
+        "id": 2,
+        "name": "Tienda",
+        "domain": "tienda.com",
+        "options": {},
+        "locales": [
+          { "code": "es", "is_default": true }
+        ]
+      }
   ],
   "next_cursor": 2,
   "total": 15,
@@ -189,10 +144,19 @@ GET /api/sites/:id
   "id": 1,
   "name": "Mi Blog",
   "domain": "miblog.com",
+  "options": {},
   "locales": [
-    { "id": 1, "code": "es", "is_default": true },
-    { "id": 2, "code": "en", "is_default": false }
-  ]
+    { "code": "es", "is_default": true },
+    { "code": "en", "is_default": false }
+  ],
+  "routes": {
+    "es": [
+      { "path": "/sobre-nosotros", "page_id": 1 }
+    ],
+    "en": [
+      { "path": "/en/about", "page_id": 1 }
+    ]
+  }
 }
 ```
 
@@ -215,7 +179,8 @@ PUT /api/sites/:id
 ```json
 {
   "name": "Mi Blog v2",
-  "domain": "miblogv2.com"
+  "domain": "miblogv2.com",
+  "options": { "theme": "dark" }
 }
 ```
 
@@ -225,9 +190,10 @@ PUT /api/sites/:id
   "id": 1,
   "name": "Mi Blog v2",
   "domain": "miblogv2.com",
+  "options": { "theme": "dark" },
   "locales": [
-    { "id": 1, "code": "es", "is_default": true },
-    { "id": 2, "code": "en", "is_default": false }
+    { "code": "es", "is_default": true },
+    { "code": "en", "is_default": false }
   ]
 }
 ```
@@ -235,7 +201,7 @@ PUT /api/sites/:id
 **Errors:**
 | Status | When |
 |--------|------|
-| 400 | Body inválido, ID inválido, name o domain vacíos |
+| 400 | Body inválido, ID inválido, name o domain vacíos, options JSON inválido |
 | 401 | Token missing, invalid or expired |
 | 404 | Site no encontrado |
 | 409 | Domain ya existe (en otro site) |
@@ -259,7 +225,6 @@ POST /api/sites/:id/locales
 **Response 201:**
 ```json
 {
-  "id": 3,
   "code": "ca",
   "is_default": false
 }
@@ -268,7 +233,7 @@ POST /api/sites/:id/locales
 **Errors:**
 | Status | When |
 |--------|------|
-| 400 | `code` vacío, más de un `is_default: true` en el site |
+| 400 | `code` vacío, site ID inválido |
 | 401 | Token missing, invalid or expired |
 | 404 | Site no encontrado |
 | 409 | Código de locale duplicado para este site |
