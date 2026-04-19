@@ -159,21 +159,13 @@ func (h *PageHandler) Create(c *echo.Context) error {
 
 	layout := req.Layout
 	if layout == nil || string(layout) == "{}" || string(layout) == "null" {
-		sectionIDs := make([]int64, 4)
-		for i := range sectionIDs {
-			id, err := h.queries.GetNextSectionID(ctx, siteID)
-			if err != nil {
-				return apierror.Internal(c, "failed to generate section id", err)
-			}
-			sectionIDs[i] = id
+		var err2 error
+		layout, err2 = makeDefaultLayout(func() (int64, error) {
+			return h.queries.GetNextSectionID(ctx, siteID)
+		}, 4)
+		if err2 != nil {
+			return apierror.Internal(c, "failed to generate section id", err2)
 		}
-		defaultLayout := []map[string]interface{}{
-			{"id": sectionIDs[0], "mobile": map[string]int{"cols": 8, "rows": 12, "gap": 4}, "tablet": map[string]int{"cols": 20, "rows": 12, "gap": 6}, "desktop": map[string]int{"cols": 24, "rows": 12, "gap": 8}, "blocks": []interface{}{}},
-			{"id": sectionIDs[1], "mobile": map[string]int{"cols": 8, "rows": 12, "gap": 4}, "tablet": map[string]int{"cols": 20, "rows": 12, "gap": 6}, "desktop": map[string]int{"cols": 24, "rows": 12, "gap": 8}, "blocks": []interface{}{}},
-			{"id": sectionIDs[2], "mobile": map[string]int{"cols": 8, "rows": 12, "gap": 4}, "tablet": map[string]int{"cols": 20, "rows": 12, "gap": 6}, "desktop": map[string]int{"cols": 24, "rows": 12, "gap": 8}, "blocks": []interface{}{}},
-			{"id": sectionIDs[3], "mobile": map[string]int{"cols": 8, "rows": 12, "gap": 4}, "tablet": map[string]int{"cols": 20, "rows": 12, "gap": 6}, "desktop": map[string]int{"cols": 24, "rows": 12, "gap": 8}, "blocks": []interface{}{}},
-		}
-		layout, _ = json.Marshal(defaultLayout)
 	}
 
 	var publishedAt pgtype.Timestamptz

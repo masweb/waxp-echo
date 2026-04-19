@@ -53,7 +53,7 @@ POST /api/media
 
 ## List Media
 
-Lista los archivos multimedia paginados, ordenados por fecha de creación descendente.
+Lista los archivos multimedia paginados con cursor-based pagination, ordenados por ID ascendente.
 
 ```
 GET /api/media
@@ -62,21 +62,16 @@ GET /api/media
 **Query Params:**
 | Param | Type | Default | Max | Description |
 |-------|------|---------|-----|-------------|
-| `page` | int | 1 | - | Número de página |
-| `per_page` | int | 20 | 100 | Elementos por página |
+| `cursor` | int64 | - | - | ID del último elemento de la página anterior. Omite para obtener la primera página |
+| `limit` | int32 | - | 100 | Cantidad de elementos por página. **Opcional**: si se omite, retorna todos los registros |
+| `filter[columna]` | string | - | - | Filtro por columna. Ver [Filtros](#filtros-media) |
+
+**Columnas filtrables:** `id`, `filename`, `mime_type`
 
 **Response 200:**
 ```json
 {
   "data": [
-    {
-      "id": 2,
-      "filename": "logo.png",
-      "mime_type": "image/png",
-      "size": 51200,
-      "url": "/media/1713500000000000001.png",
-      "created_at": "2026-04-19T12:01:00Z"
-    },
     {
       "id": 1,
       "filename": "foto.jpg",
@@ -84,17 +79,26 @@ GET /api/media
       "size": 204800,
       "url": "/media/1713500000000000000.jpg",
       "created_at": "2026-04-19T12:00:00Z"
+    },
+    {
+      "id": 2,
+      "filename": "logo.png",
+      "mime_type": "image/png",
+      "size": 51200,
+      "url": "/media/1713500000000000001.png",
+      "created_at": "2026-04-19T12:01:00Z"
     }
   ],
+  "next_cursor": 2,
   "total": 2,
-  "page": 1,
-  "per_page": 20
+  "has_more": false
 }
 ```
 
 **Errors:**
 | Status | When |
 |--------|------|
+| 400 | Cursor o limit inválidos, columna de filtro desconocida |
 | 401 | Token missing, invalid or expired |
 
 ---

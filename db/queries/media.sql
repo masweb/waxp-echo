@@ -9,8 +9,9 @@ WHERE id = $1;
 
 -- name: ListMedia :many
 SELECT * FROM media
-ORDER BY created_at DESC
-LIMIT $1 OFFSET $2;
+WHERE ($1::BIGINT IS NULL OR id > $1)
+ORDER BY id ASC
+LIMIT $2;
 
 -- name: DeleteMedia :one
 DELETE FROM media

@@ -187,32 +187,9 @@ func (h *SiteHandler) CreateWithDefaults(c *echo.Context) error {
 	}
 
 	makeLayout := func() ([]byte, error) {
-		sectionIDs := make([]int64, 4)
-		for i := range sectionIDs {
-			id, err := qtx.GetNextSectionID(ctx, site.ID)
-			if err != nil {
-				return nil, err
-			}
-			sectionIDs[i] = id
-		}
-
-		makeSection := func(id int64) map[string]interface{} {
-			return map[string]interface{}{
-				"id":      id,
-				"mobile":  map[string]int{"cols": 8, "rows": 12, "gap": 4},
-				"tablet":  map[string]int{"cols": 20, "rows": 12, "gap": 6},
-				"desktop": map[string]int{"cols": 24, "rows": 12, "gap": 8},
-				"blocks":  []interface{}{},
-			}
-		}
-
-		defaultLayout := []map[string]interface{}{
-			makeSection(sectionIDs[0]),
-			makeSection(sectionIDs[1]),
-			makeSection(sectionIDs[2]),
-			makeSection(sectionIDs[3]),
-		}
-		return json.Marshal(defaultLayout)
+		return makeDefaultLayout(func() (int64, error) {
+			return qtx.GetNextSectionID(ctx, site.ID)
+		}, 4)
 	}
 
 	defaultPages := []struct {

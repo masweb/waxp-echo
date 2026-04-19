@@ -1,0 +1,39 @@
+{
+  "blocks": [],
+  "mobile": { "cols": 8, "rows": 12, "gap": 4 },
+  "tablet": { "cols": 20, "rows": 12, "gap": 4 },
+  "desktop": { "cols": 24, "rows": 12, "gap": 6 },
+  "style": {
+    "maxWidth": null,
+    "hideOn": [],
+    "background": {
+      "mode": "none",
+      "lightColor": "",
+      "darkcolorColor": "",
+      "url_desk": "",
+      "url_mov": "",
+      "url_thumb": "",
+      "fix_img_back": false,
+      "pos": "img",
+      "size": "",
+      "repeat": false,
+      "lightGradA": "",
+      "lightGradB": "",
+      "darkGradA": "",
+      "darkGradB": "",
+      "gradDeg": ""
+    },
+    "padding": {
+      "t": "0",
+      "r": "0",
+      "b": "0",
+      "l": "0"
+    },
+    "margin": {
+      "t": "0",
+      "r": "0",
+      "b": "10px",
+      "l": "0"
+    }
+  }
+}

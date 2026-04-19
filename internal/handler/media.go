@@ -12,10 +12,12 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v5"
 
 	"waxp/echo/internal/apierror"
 	"waxp/echo/internal/db"
+	"waxp/echo/internal/filter"
 )
 
 var allowedMimeTypes = map[string]bool{
@@ -28,11 +30,12 @@ var allowedMimeTypes = map[string]bool{
 
 type MediaHandler struct {
 	queries  *db.Queries
+	pool     *pgxpool.Pool
 	mediaDir string
 }
 
-func NewMediaHandler(queries *db.Queries, mediaDir string) *MediaHandler {
-	return &MediaHandler{queries: queries, mediaDir: mediaDir}
+func NewMediaHandler(queries *db.Queries, pool *pgxpool.Pool, mediaDir string) *MediaHandler {
+	return &MediaHandler{queries: queries, pool: pool, mediaDir: mediaDir}
 }
 
 type MediaResponse struct {
@@ -42,13 +45,6 @@ type MediaResponse struct {
 	Size      int64  `json:"size"`
 	URL       string `json:"url"`
 	CreatedAt string `json:"created_at"`
-}
-
-type MediaListResponse struct {
-	Data    []MediaResponse `json:"data"`
-	Total   int64           `json:"total"`
-	Page    int             `json:"page"`
-	PerPage int             `json:"per_page"`
 }
 
 func (h *MediaHandler) Upload(c *echo.Context) error {
@@ -115,31 +111,83 @@ func (h *MediaHandler) Upload(c *echo.Context) error {
 }
 
 func (h *MediaHandler) List(c *echo.Context) error {
-	page := 1
-	perPage := 20
+	const maxLimit int32 = 100
 
-	if p := c.QueryParam("page"); p != "" {
-		if v, err := strconv.Atoi(p); err == nil && v > 0 {
-			page = v
+	limitStr := c.QueryParam("limit")
+	cursorStr := c.QueryParam("cursor")
+
+	var limit *int32
+	if limitStr != "" {
+		parsed, err := strconv.ParseInt(limitStr, 10, 32)
+		if err != nil || parsed <= 0 {
+			return apierror.JSON(c, http.StatusBadRequest, "invalid limit")
 		}
-	}
-	if pp := c.QueryParam("per_page"); pp != "" {
-		if v, err := strconv.Atoi(pp); err == nil && v > 0 && v <= 100 {
-			perPage = v
+		v := int32(parsed)
+		if v > maxLimit {
+			v = maxLimit
 		}
+		limit = &v
 	}
 
-	total, err := h.queries.CountMedia(c.Request().Context())
-	if err != nil {
+	var cursor *int64
+	if cursorStr != "" {
+		parsed, err := strconv.ParseInt(cursorStr, 10, 64)
+		if err != nil || parsed < 0 {
+			return apierror.JSON(c, http.StatusBadRequest, "invalid cursor")
+		}
+		cursor = &parsed
+	}
+
+	builder := filter.NewBuilder(map[string]string{
+		"id":        "id",
+		"filename":  "filename",
+		"mime_type": "mime_type",
+	})
+	if err := builder.Parse(c.Request().URL.Query()); err != nil {
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
+	}
+
+	result := builder.Build(cursor, 1)
+	ctx := c.Request().Context()
+
+	whereClause := ""
+	if result.WhereClause != "" {
+		whereClause = " WHERE " + result.WhereClause
+	}
+
+	countSQL := "SELECT COUNT(*) FROM media" + whereClause
+	var total int64
+	if err := h.pool.QueryRow(ctx, countSQL, result.Args...).Scan(&total); err != nil {
 		return apierror.Internal(c, "failed to count media", err)
 	}
 
-	offset := (page - 1) * perPage
-	media, err := h.queries.ListMedia(c.Request().Context(), db.ListMediaParams{
-		Limit:  int32(perPage),
-		Offset: int32(offset),
-	})
+	listSQL := "SELECT id, filename, mime_type, size, url, created_at FROM media" + whereClause + " ORDER BY id ASC"
+
+	paginated := limit != nil
+	var listArgs []any
+	if paginated {
+		nextParam := len(result.Args) + 1
+		listSQL += fmt.Sprintf(" LIMIT $%d", nextParam)
+		listArgs = append(append([]any{}, result.Args...), int64(*limit))
+	} else {
+		listArgs = result.Args
+	}
+
+	rows, err := h.pool.Query(ctx, listSQL, listArgs...)
 	if err != nil {
+		return apierror.Internal(c, "failed to list media", err)
+	}
+	defer rows.Close()
+
+	var media []db.Medium
+	for rows.Next() {
+		var m db.Medium
+		if err := rows.Scan(&m.ID, &m.Filename, &m.MimeType, &m.Size, &m.Url, &m.CreatedAt); err != nil {
+			return apierror.Internal(c, "failed to scan media", err)
+		}
+		media = append(media, m)
+	}
+	if err := rows.Err(); err != nil {
 		return apierror.Internal(c, "failed to list media", err)
 	}
 
@@ -148,11 +196,21 @@ func (h *MediaHandler) List(c *echo.Context) error {
 		data = append(data, toMediaResponse(m))
 	}
 
-	return c.JSON(http.StatusOK, MediaListResponse{
-		Data:    data,
-		Total:   total,
-		Page:    page,
-		PerPage: perPage,
+	var nextCursor *int64
+	var hasMore bool
+	if paginated {
+		hasMore = len(media) == int(*limit)
+		if hasMore && len(media) > 0 {
+			lastID := media[len(media)-1].ID
+			nextCursor = &lastID
+		}
+	}
+
+	return c.JSON(http.StatusOK, PaginatedResponse[MediaResponse]{
+		Data:       data,
+		NextCursor: nextCursor,
+		Total:      total,
+		HasMore:    hasMore,
 	})
 }
 

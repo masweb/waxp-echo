@@ -63,7 +63,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 
 	pageHandler := handler.NewPageHandler(queries, pool)
 	sectionHandler := handler.NewSectionHandler(queries)
-	mediaHandler := handler.NewMediaHandler(queries, cfg.MediaDir)
+	mediaHandler := handler.NewMediaHandler(queries, pool, cfg.MediaDir)
 	sites.POST("/:id/pages", pageHandler.Create)
 	sites.GET("/:id/pages", pageHandler.List)
 	sites.GET("/:id/pages/:pageId", pageHandler.GetByID)

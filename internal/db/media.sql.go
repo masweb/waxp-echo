@@ -93,17 +93,18 @@ func (q *Queries) GetMediaByID(ctx context.Context, id int64) (Medium, error) {
 
 const listMedia = `-- name: ListMedia :many
 SELECT id, filename, mime_type, size, url, created_at FROM media
-ORDER BY created_at DESC
-LIMIT $1 OFFSET $2
+WHERE ($1::BIGINT IS NULL OR id > $1)
+ORDER BY id ASC
+LIMIT $2
 `
 
 type ListMediaParams struct {
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	Column1 int64 `json:"column_1"`
+	Limit   int32 `json:"limit"`
 }
 
 func (q *Queries) ListMedia(ctx context.Context, arg ListMediaParams) ([]Medium, error) {
-	rows, err := q.db.Query(ctx, listMedia, arg.Limit, arg.Offset)
+	rows, err := q.db.Query(ctx, listMedia, arg.Column1, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
