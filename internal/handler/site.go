@@ -274,6 +274,8 @@ func (h *SiteHandler) GetByID(c *echo.Context) error {
 		return apierror.JSON(c, http.StatusBadRequest, err.Error())
 	}
 
+	locale := c.QueryParam("locale")
+
 	ctx := c.Request().Context()
 
 	site, err := h.queries.GetSiteByID(ctx, id)
@@ -289,16 +291,40 @@ func (h *SiteHandler) GetByID(c *echo.Context) error {
 		return apierror.Internal(c, "failed to get locales", err)
 	}
 
+	if locale != "" {
+		validLocale := false
+		for _, l := range locales {
+			if l.Code == locale {
+				validLocale = true
+			}
+		}
+		if !validLocale {
+			return apierror.JSON(c, http.StatusBadRequest, fmt.Sprintf("locale '%s' does not belong to this site", locale))
+		}
+	} else {
+		for _, l := range locales {
+			if l.IsDefault {
+				locale = l.Code
+				break
+			}
+		}
+	}
+
 	routes, err := buildRoutesMap(ctx, h.queries, id)
 	if err != nil {
 		return err
+	}
+
+	resolvedOptions, err := resolveLayoutLocales(site.Options, locale)
+	if err != nil {
+		return apierror.Internal(c, "failed to resolve options locales", err)
 	}
 
 	return c.JSON(http.StatusOK, SiteResponse{
 		ID:      site.ID,
 		Name:    site.Name,
 		Domain:  site.Domain,
-		Options: site.Options,
+		Options: resolvedOptions,
 		Locales: toLocaleResponses(locales),
 		Routes:  routes,
 	})
@@ -483,6 +509,11 @@ func (h *SiteHandler) Update(c *echo.Context) error {
 		return apierror.JSON(c, http.StatusBadRequest, err.Error())
 	}
 
+	locale := c.QueryParam("locale")
+	if locale == "" {
+		return apierror.JSON(c, http.StatusBadRequest, "locale is required")
+	}
+
 	var req UpdateSiteRequest
 	if err := c.Bind(&req); err != nil {
 		return apierror.JSON(c, http.StatusBadRequest, "invalid request body")
@@ -500,16 +531,45 @@ func (h *SiteHandler) Update(c *echo.Context) error {
 		return apierror.JSON(c, http.StatusBadRequest, err.Error())
 	}
 
+	ctx := c.Request().Context()
+
+	existing, err := h.queries.GetSiteByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return apierror.JSON(c, http.StatusNotFound, "site not found")
+		}
+		return apierror.Internal(c, "failed to get site", err)
+	}
+
+	siteLocales, err := h.queries.ListSiteLocales(ctx, id)
+	if err != nil {
+		return apierror.Internal(c, "failed to get locales", err)
+	}
+
+	validLocale := false
+	for _, l := range siteLocales {
+		if l.Code == locale {
+			validLocale = true
+		}
+	}
+	if !validLocale {
+		return apierror.JSON(c, http.StatusBadRequest, fmt.Sprintf("locale '%s' does not belong to this site", locale))
+	}
+
 	options := req.Options
 	if options == nil {
-		options = json.RawMessage(`{}`)
+		options = existing.Options
+	} else {
+		if err := validateJSON(options); err != nil {
+			return apierror.JSON(c, http.StatusBadRequest, "options: "+err.Error())
+		}
+		options, err = mergeLayoutLocales(options, existing.Options, locale)
+		if err != nil {
+			return apierror.Internal(c, "failed to merge options locales", err)
+		}
 	}
 
-	if err := validateJSON(options); err != nil {
-		return apierror.JSON(c, http.StatusBadRequest, "options: "+err.Error())
-	}
-
-	site, err := h.queries.UpdateSite(c.Request().Context(), db.UpdateSiteParams{
+	site, err := h.queries.UpdateSite(ctx, db.UpdateSiteParams{
 		Name:    req.Name,
 		Domain:  req.Domain,
 		Options: options,
@@ -526,17 +586,17 @@ func (h *SiteHandler) Update(c *echo.Context) error {
 		return apierror.Internal(c, "failed to update site", err)
 	}
 
-	locales, err := h.queries.ListSiteLocales(c.Request().Context(), id)
+	resolvedOptions, err := resolveLayoutLocales(site.Options, locale)
 	if err != nil {
-		return apierror.Internal(c, "failed to get locales", err)
+		return apierror.Internal(c, "failed to resolve options locales", err)
 	}
 
 	return c.JSON(http.StatusOK, SiteResponse{
 		ID:      site.ID,
 		Name:    site.Name,
 		Domain:  site.Domain,
-		Options: site.Options,
-		Locales: toLocaleResponses(locales),
+		Options: resolvedOptions,
+		Locales: toLocaleResponses(siteLocales),
 	})
 }
 

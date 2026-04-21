@@ -19,8 +19,7 @@ Authorization: Bearer <token>
 | `type` | string | `"page"` o `"post"` |
 | `layout` | JSONB | Contenido/layout de la página |
 | `published_at` | string|null | Fecha de publicación (ISO 8601). `null` = borrador |
-| `title` | array | Títulos por locale |
-| `description` | array | Descripciones por locale |
+| `seo` | array | SEO por locale |
 | `slugs` | array | Slugs por locale |
 | `created_at` | string | Fecha de creación (ISO 8601) |
 | `updated_at` | string | Fecha de actualización (ISO 8601) |
@@ -76,22 +75,98 @@ Pages (type='page', blog_id=NULL)
 
 ---
 
+## Layout y locales
+
+El campo `layout` es un JSONB que contiene secciones y bloques. Los bloques pueden tener un campo `locales` con campos traducibles por idioma.
+
+### Almacenamiento en BD
+
+Cada valor dentro de `locales` es un mapa `{locale_code: string}`:
+
+```json
+[
+  {
+    "id": 1,
+    "mobile": { "cols": 8, "rows": 12 },
+    "tablet": { "cols": 12, "rows": 16 },
+    "desktop": { "cols": 24, "rows": 20 },
+    "blocks": [
+      {
+        "id": 10,
+        "type": "heading",
+        "locales": {
+          "title": { "es": "Sobre nosotros", "en": "About us" },
+          "subtitle": { "es": "Conoce nuestro equipo", "en": "Meet our team" }
+        },
+        "config": { "level": 2 }
+      },
+      {
+        "id": 11,
+        "type": "paragraph",
+        "locales": {
+          "text": { "es": "Bienvenidos", "en": "Welcome" }
+        }
+      },
+      {
+        "id": 12,
+        "type": "image",
+        "config": { "src": "/img.jpg", "alt": "Foto" }
+      }
+    ]
+  }
+]
+```
+
+### Comportamiento por idioma
+
+Las operaciones de lectura y escritura requieren el query param `?locale=es`. El backend se encarga de resolver las traducciones de forma transparente:
+
+- **Lectura (GET)**: Los valores de `locales` se resuelven a strings del idioma solicitado. Si un locale no tiene traducción para un campo, se devuelve `""`.
+- **Creación (POST)**: Los strings recibidos se envuelven en el mapa de idiomas antes de guardar.
+- **Actualización (PUT)**: Los strings entrantes se mergean en el mapa existente. Los demás idiomas se preservan intactos. El merge se hace por `id` de bloque/sección.
+
+> Los bloques sin campo `locales` (como `image` en el ejemplo) no se ven afectados.
+
+---
+
 ## Create Page
 
 ```
-POST /api/sites/:id/pages
+POST /api/sites/:id/pages?locale=es
 ```
 
-**Body (page):**
+**Query Params:**
+| Param | Type | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `locale` | string | Sí | Código de idioma (ISO 639-1). Debe pertenecer al site |
+
+**Body (page con layout):**
 ```json
 {
   "type": "page",
   "parent_id": null,
-  "layout": {},
+  "layout": [
+    {
+      "id": 1,
+      "mobile": { "cols": 8, "rows": 12 },
+      "tablet": { "cols": 12, "rows": 16 },
+      "desktop": { "cols": 24, "rows": 20 },
+      "blocks": [
+        {
+          "id": 10,
+          "type": "heading",
+          "locales": {
+            "title": "Sobre nosotros",
+            "subtitle": "Conoce nuestro equipo"
+          },
+          "config": { "level": 2 }
+        }
+      ]
+    }
+  ],
   "published_at": "2026-04-14T10:00:00Z",
   "seo": [
-    { "locale_code": "es", "title": "Sobre nosotros", "description": "Conoce nuestro equipo" },
-    { "locale_code": "en", "title": "About us", "description": "Meet our team" }
+    { "locale_code": "es", "title": "Sobre nosotros", "description": "Conoce nuestro equipo" }
   ],
   "slugs": [
     { "locale_code": "es", "slug": "sobre-nosotros" },
@@ -99,6 +174,8 @@ POST /api/sites/:id/pages
   ]
 }
 ```
+
+> Los valores dentro de `locales` son strings simples (no mapas). El backend los envuelve en `{ "es": "..." }` al guardar en BD.
 
 **Body (post):**
 ```json
@@ -108,8 +185,7 @@ POST /api/sites/:id/pages
   "layout": {},
   "published_at": "2026-04-14T10:00:00Z",
   "seo": [
-    { "locale_code": "es", "title": "Mi artículo", "description": "Descripción SEO" },
-    { "locale_code": "en", "title": "My article", "description": "SEO description" }
+    { "locale_code": "es", "title": "Mi artículo", "description": "Descripción SEO" }
   ],
   "slugs": [
     { "locale_code": "es", "slug": "mi-articulo" },
@@ -156,11 +232,28 @@ Cuando `layout` está vacío, `{}`, o `null`, el backend genera automáticamente
   "blog_id": null,
   "parent_id": null,
   "type": "page",
-  "layout": {},
+  "layout": [
+    {
+      "id": 1,
+      "mobile": { "cols": 8, "rows": 12 },
+      "tablet": { "cols": 12, "rows": 16 },
+      "desktop": { "cols": 24, "rows": 20 },
+      "blocks": [
+        {
+          "id": 10,
+          "type": "heading",
+          "locales": {
+            "title": "Sobre nosotros",
+            "subtitle": "Conoce nuestro equipo"
+          },
+          "config": { "level": 2 }
+        }
+      ]
+    }
+  ],
   "published_at": "2026-04-14T10:00:00Z",
   "seo": [
-    { "id": 1, "locale_code": "es", "title": "Sobre nosotros", "description": "Contenido SEO" },
-    { "id": 2, "locale_code": "en", "title": "About us", "description": "SEO content" }
+    { "id": 1, "locale_code": "es", "title": "Sobre nosotros", "description": "Conoce nuestro equipo" }
   ],
   "slugs": [
     { "id": 1, "locale_code": "es", "slug": "sobre-nosotros" },
@@ -171,10 +264,12 @@ Cuando `layout` está vacío, `{}`, o `null`, el backend genera automáticamente
 }
 ```
 
+> La respuesta devuelve el layout resuelto para el locale solicitado (strings, no mapas).
+
 **Errors:**
 | Status | When |
 |--------|------|
-| 400 | `type` inválido, sin slugs, slug vacío, locale_code no pertenece al site, `blog_id` requerido para posts, blog no encontrado, parent_id no encontrado o tipo incompatible, página no puede ser su propio padre, seo sin locale_code o locale_code no pertenece al site |
+| 400 | `type` inválido, sin slugs, slug vacío, locale_code no pertenece al site, `blog_id` requerido para posts, blog no encontrado, parent_id no encontrado o tipo incompatible, página no puede ser su propio padre, seo sin locale_code o locale_code no pertenece al site, locale requerido, locale no pertenece al site |
 | 401 | Token missing, invalid or expired |
 | 404 | Site no encontrado |
 
@@ -233,6 +328,8 @@ Ver [Paginación](./pagination.md) para detalle del comportamiento.
 }
 ```
 
+> El listado devuelve el layout sin resolver (formato BD). No requiere `?locale`.
+
 **Errors:**
 | Status | When |
 |--------|------|
@@ -245,15 +342,61 @@ Ver [Paginación](./pagination.md) para detalle del comportamiento.
 ## Get Page
 
 ```
-GET /api/sites/:id/pages/:pageId
+GET /api/sites/:id/pages/:pageId?locale=es
 ```
 
-**Response 200:** Mismo formato que Create Page response.
+**Query Params:**
+| Param | Type | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `locale` | string | Sí | Código de idioma (ISO 639-1). Debe pertenecer al site |
+
+**Response 200:**
+```json
+{
+  "id": 1,
+  "site_id": 1,
+  "blog_id": null,
+  "parent_id": null,
+  "type": "page",
+  "layout": [
+    {
+      "id": 1,
+      "mobile": { "cols": 8, "rows": 12 },
+      "tablet": { "cols": 12, "rows": 16 },
+      "desktop": { "cols": 24, "rows": 20 },
+      "blocks": [
+        {
+          "id": 10,
+          "type": "heading",
+          "locales": {
+            "title": "Sobre nosotros",
+            "subtitle": "Conoce nuestro equipo"
+          },
+          "config": { "level": 2 }
+        }
+      ]
+    }
+  ],
+  "published_at": "2026-04-14T10:00:00Z",
+  "seo": [
+    { "id": 1, "locale_code": "es", "title": "Sobre nosotros", "description": "Contenido SEO" },
+    { "id": 2, "locale_code": "en", "title": "About us", "description": "SEO content" }
+  ],
+  "slugs": [
+    { "id": 1, "locale_code": "es", "slug": "sobre-nosotros" },
+    { "id": 2, "locale_code": "en", "slug": "about" }
+  ],
+  "created_at": "2026-04-14T10:00:00Z",
+  "updated_at": "2026-04-14T10:00:00Z"
+}
+```
+
+> Si el locale es `en` y un bloque solo tiene `es`, los campos de `locales` se devuelven como `""`.
 
 **Errors:**
 | Status | When |
 |--------|------|
-| 400 | Site ID o page ID inválido |
+| 400 | Site ID o page ID inválido, locale requerido, locale no pertenece al site |
 | 401 | Token missing, invalid or expired |
 | 404 | Página no encontrada |
 
@@ -262,16 +405,39 @@ GET /api/sites/:id/pages/:pageId
 ## Update Page
 
 ```
-PUT /api/sites/:id/pages/:pageId
+PUT /api/sites/:id/pages/:pageId?locale=es
 ```
 
 El `type` y `blog_id` no se pueden modificar tras la creación. Solo se actualizan `parent_id`, `layout`, `published_at`, `seo` y `slugs`.
+
+**Query Params:**
+| Param | Type | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `locale` | string | Sí | Código de idioma (ISO 639-1). Debe pertenecer al site |
 
 **Body:**
 ```json
 {
   "parent_id": 1,
-  "layout": { "components": [...] },
+  "layout": [
+    {
+      "id": 1,
+      "mobile": { "cols": 8, "rows": 12 },
+      "tablet": { "cols": 12, "rows": 16 },
+      "desktop": { "cols": 24, "rows": 20 },
+      "blocks": [
+        {
+          "id": 10,
+          "type": "heading",
+          "locales": {
+            "title": "Sobre nosotros - editado",
+            "subtitle": "Conoce nuestro equipo"
+          },
+          "config": { "level": 2 }
+        }
+      ]
+    }
+  ],
   "published_at": "2026-04-14T12:00:00Z",
   "seo": [
     { "locale_code": "es", "title": "Sobre nosotros", "description": "Conoce nuestro equipo" },
@@ -284,22 +450,39 @@ El `type` y `blog_id` no se pueden modificar tras la creación. Solo se actualiz
 }
 ```
 
+> Los valores dentro de `locales` son strings simples. El backend los mergea en el mapa existente por `id` de bloque, preservando los demás idiomas.
+
+**Ejemplo de merge en BD:**
+
+Si el bloque 10 tenía en BD:
+```json
+{ "title": { "es": "Sobre nosotros", "en": "About us" } }
+```
+Y se envía `PUT ?locale=es` con:
+```json
+{ "title": "Sobre nosotros - editado" }
+```
+El resultado en BD será:
+```json
+{ "title": { "es": "Sobre nosotros - editado", "en": "About us" } }
+```
+
 | Campo | Tipo | Requerido | Descripción |
 |-------|------|-----------|-------------|
 | `parent_id` | int64|null | No | Cambiar padre. Mismo tipo y (para posts) mismo blog. La página no puede ser su propio padre |
-| `layout` | object | No | Actualizar layout. Por defecto `{}` |
+| `layout` | object | No | Actualizar layout. Los `locales` se mergean por idioma, el resto se reemplaza |
 | `published_at` | string|null | No | Actualizar fecha de publicación |
 | `seo` | array | No | Reemplaza todos los SEO. Cada `locale_code` debe pertenecer al site |
 | `slugs` | array | Sí | Reemplaza todos los slugs existentes. Al menos uno requerido |
 
 > Los slugs y SEO se eliminan y reinsertan en una transacción atómica.
 
-**Response 200:** Mismo formato que Get Page.
+**Response 200:** Mismo formato que Get Page (layout resuelto para el locale solicitado).
 
 **Errors:**
 | Status | When |
 |--------|------|
-| 400 | Sin slugs, slug vacío, locale_code no pertenece al site, parent_id inválido o tipo incompatible, página no puede ser su propio padre, seo sin locale_code o locale_code no pertenece al site |
+| 400 | Sin slugs, slug vacío, locale_code no pertenece al site, parent_id inválido o tipo incompatible, página no puede ser su propio padre, seo sin locale_code o locale_code no pertenece al site, locale requerido, locale no pertenece al site |
 | 401 | Token missing, invalid or expired |
 | 404 | Página no encontrada |
 

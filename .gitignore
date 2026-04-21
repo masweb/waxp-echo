@@ -1,6 +1,7 @@
 .env
 /bin/
 /tmp/
+/uploads/
 *.exe
 *.test
 .DS_Store

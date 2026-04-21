@@ -33,7 +33,7 @@ POST /api/sites
 |-------|------|-----------|-------------|
 | `name` | string | Sí | Nombre del site (máx 255 caracteres) |
 | `domain` | string | Sí | Dominio del site (único) |
-| `options` | object | No | Opciones del site (JSON). Por defecto `{}` |
+| `options` | object | No | Opciones del site (JSON). Por defecto `{}`. Puede contener `header` y `footer` con bloques traducibles (ver [Layout y locales en options](#layout-y-locales-en-options)) |
 | `locales` | array | **Sí** | Al menos un locale es requerido |
 
 **Objeto locale:**
@@ -132,11 +132,63 @@ Ver [Paginación](./pagination.md) para detalle del comportamiento.
 
 ---
 
+## Layout y locales en options
+
+El campo `options` puede contener `header` y `footer`, que son secciones con bloques. Estos bloques siguen el mismo patrón de `locales` que el layout de páginas.
+
+### Almacenamiento en BD
+
+```json
+{
+  "header": {
+    "id": 1,
+    "blocks": [
+      {
+        "id": 10,
+        "type": "nav-link",
+        "locales": {
+          "label": { "es": "Inicio", "en": "Home" }
+        }
+      }
+    ]
+  },
+  "footer": {
+    "id": 2,
+    "blocks": [
+      {
+        "id": 20,
+        "type": "text",
+        "locales": {
+          "text": { "es": "Derechos reservados", "en": "All rights reserved" }
+        }
+      }
+    ]
+  },
+  "theme": "dark"
+}
+```
+
+### Comportamiento por idioma
+
+GET y PUT de site requieren `?locale=es`. El backend resuelve los `locales` de los bloques dentro de `header` y `footer` de forma transparente, igual que en las páginas:
+
+- **GET**: Los valores de `locales` se resuelven a strings del idioma solicitado. Si falta traducción, se devuelve `""`.
+- **PUT**: Los strings entrantes se mergean en el mapa existente por `id` de bloque. El resto de opciones no traducibles se mantiene intacto.
+
+> Otros campos de `options` que no contengan `locales` (como `theme`) no se ven afectados.
+
+---
+
 ## Get Site
 
 ```
-GET /api/sites/:id
+GET /api/sites/:id?locale=es
 ```
+
+**Query Params:**
+| Param | Type | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `locale` | string | No | Código de idioma (ISO 639-1). Si se omite, usa el locale por defecto del site |
 
 **Response 200:**
 ```json
@@ -144,7 +196,33 @@ GET /api/sites/:id
   "id": 1,
   "name": "Mi Blog",
   "domain": "miblog.com",
-  "options": {},
+  "options": {
+    "header": {
+      "id": 1,
+      "blocks": [
+        {
+          "id": 10,
+          "type": "nav-link",
+          "locales": {
+            "label": "Inicio"
+          }
+        }
+      ]
+    },
+    "footer": {
+      "id": 2,
+      "blocks": [
+        {
+          "id": 20,
+          "type": "text",
+          "locales": {
+            "text": "Derechos reservados"
+          }
+        }
+      ]
+    },
+    "theme": "dark"
+  },
   "locales": [
     { "code": "es", "is_default": true },
     { "code": "en", "is_default": false }
@@ -160,10 +238,12 @@ GET /api/sites/:id
 }
 ```
 
+> Los `locales` dentro de header/footer se devuelven resueltos al idioma solicitado.
+
 **Errors:**
 | Status | When |
 |--------|------|
-| 400 | ID inválido |
+| 400 | ID inválido, locale requerido, locale no pertenece al site |
 | 401 | Token missing, invalid or expired |
 | 404 | Site no encontrado |
 
@@ -172,36 +252,60 @@ GET /api/sites/:id
 ## Update Site
 
 ```
-PUT /api/sites/:id
+PUT /api/sites/:id?locale=es
 ```
+
+**Query Params:**
+| Param | Type | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `locale` | string | Sí | Código de idioma (ISO 639-1). Debe pertenecer al site |
 
 **Body:**
 ```json
 {
   "name": "Mi Blog v2",
   "domain": "miblogv2.com",
-  "options": { "theme": "dark" }
+  "options": {
+    "header": {
+      "id": 1,
+      "blocks": [
+        {
+          "id": 10,
+          "type": "nav-link",
+          "locales": {
+            "label": "Inicio - editado"
+          }
+        }
+      ]
+    },
+    "theme": "dark"
+  }
 }
 ```
 
-**Response 200:**
+> Los valores dentro de `locales` son strings simples. El backend los mergea en el mapa existente por `id` de bloque, preservando los demás idiomas.
+
+**Ejemplo de merge en BD:**
+
+Si el bloque 10 tenía en BD:
 ```json
-{
-  "id": 1,
-  "name": "Mi Blog v2",
-  "domain": "miblogv2.com",
-  "options": { "theme": "dark" },
-  "locales": [
-    { "code": "es", "is_default": true },
-    { "code": "en", "is_default": false }
-  ]
-}
+{ "label": { "es": "Inicio", "en": "Home" } }
 ```
+Y se envía `PUT ?locale=es` con:
+```json
+{ "label": "Inicio - editado" }
+```
+El resultado en BD será:
+```json
+{ "label": { "es": "Inicio - editado", "en": "Home" } }
+```
+
+**Response 200:** Mismo formato que Get Site (options resueltas para el locale solicitado).
 
 **Errors:**
 | Status | When |
 |--------|------|
-| 400 | Body inválido, ID inválido, name o domain vacíos, options JSON inválido |
+| 400 | Body inválido, ID inválido, name o domain vacíos, options JSON inválido, locale requerido, locale no pertenece al site |
 | 401 | Token missing, invalid or expired |
 | 404 | Site no encontrado |
 | 409 | Domain ya existe (en otro site) |

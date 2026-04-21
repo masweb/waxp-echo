@@ -11,29 +11,28 @@
 
 ## Sites
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/sites` | List sites (paginated) |
-| `POST` | `/api/sites` | Create site |
-| `POST` | `/api/sites/init` | Create site with default pages |
-| `GET` | `/api/sites/:id` | Get site |
-| `PUT` | `/api/sites/:id` | Update site |
-| `DELETE` | `/api/sites/:id` | Delete site |
-| `POST` | `/api/sites/:id/locales` | Add locale to site |
-| `DELETE` | `/api/sites/:id/locales/:localeCode` | Remove locale from site |
+| Method | Endpoint | Query Params | Description |
+|--------|----------|-------------|-------------|
+| `GET` | `/api/sites` | `cursor`, `limit`, `filter[*]` | List sites (paginated) |
+| `POST` | `/api/sites` | | Create site with default pages |
+| `GET` | `/api/sites/:id` | `locale` (opcional) | Get site (options resolved to locale, default if omitted) |
+| `PUT` | `/api/sites/:id` | `locale` **(required)** | Update site (options merged by locale) |
+| `DELETE` | `/api/sites/:id` | | Delete site |
+| `POST` | `/api/sites/:id/locales` | | Add locale to site |
+| `DELETE` | `/api/sites/:id/locales/:localeCode` | | Remove locale from site |
 
 ## Pages
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/sites/:id/pages` | List pages (paginated, filterable) |
-| `POST` | `/api/sites/:id/pages` | Create page or post |
-| `GET` | `/api/sites/:id/pages/:pageId` | Get page |
-| `PUT` | `/api/sites/:id/pages/:pageId` | Update page |
-| `DELETE` | `/api/sites/:id/pages/:pageId` | Delete page |
-| `GET` | `/api/sites/:id/routes` | Get all routes (for vue-router) |
-| `POST` | `/api/sites/:id/sections/next-id` | Get next unique section ID |
-| `POST` | `/api/sites/:id/blocks/next-id` | Get next unique block ID |
+| Method | Endpoint | Query Params | Description |
+|--------|----------|-------------|-------------|
+| `GET` | `/api/sites/:id/pages` | `cursor`, `limit`, `filter[*]` | List pages (paginated, filterable) |
+| `POST` | `/api/sites/:id/pages` | `locale` **(required)** | Create page or post |
+| `GET` | `/api/sites/:id/pages/:pageId` | `locale` **(required)** | Get page (layout resolved to locale) |
+| `PUT` | `/api/sites/:id/pages/:pageId` | `locale` **(required)** | Update page (layout merged by locale) |
+| `DELETE` | `/api/sites/:id/pages/:pageId` | | Delete page |
+| `GET` | `/api/sites/:id/routes` | | Get all routes (for vue-router) |
+| `POST` | `/api/sites/:id/sections/next-id` | | Get next unique section ID |
+| `POST` | `/api/sites/:id/blocks/next-id` | | Get next unique block ID |
 
 ## Media
 

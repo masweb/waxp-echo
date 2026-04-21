@@ -105,6 +105,11 @@ func (h *PageHandler) Create(c *echo.Context) error {
 		return apierror.JSON(c, http.StatusBadRequest, "invalid request body")
 	}
 
+	locale := c.QueryParam("locale")
+	if locale == "" {
+		return apierror.JSON(c, http.StatusBadRequest, "locale is required")
+	}
+
 	if req.Type != "page" && req.Type != "post" {
 		return apierror.JSON(c, http.StatusBadRequest, "type must be 'page' or 'post'")
 	}
@@ -242,6 +247,15 @@ func (h *PageHandler) Create(c *echo.Context) error {
 		}
 	}
 
+	if _, ok := localeByCode[locale]; !ok {
+		return apierror.JSON(c, http.StatusBadRequest, fmt.Sprintf("locale '%s' does not belong to this site", locale))
+	}
+
+	layout, err = wrapLayoutLocales(layout, locale)
+	if err != nil {
+		return apierror.Internal(c, "failed to wrap layout locales", err)
+	}
+
 	tx, err := h.pool.Begin(ctx)
 	if err != nil {
 		return apierror.Internal(c, "failed to begin transaction", err)
@@ -308,7 +322,12 @@ func (h *PageHandler) Create(c *echo.Context) error {
 		return apierror.Internal(c, "failed to commit transaction", err)
 	}
 
-	return c.JSON(http.StatusCreated, toPageResponse(page, slugs, seo))
+	resp := toPageResponse(page, slugs, seo)
+	resp.Layout, err = resolveLayoutLocales(resp.Layout, locale)
+	if err != nil {
+		return apierror.Internal(c, "failed to resolve layout locales", err)
+	}
+	return c.JSON(http.StatusCreated, resp)
 }
 
 func (h *PageHandler) GetByID(c *echo.Context) error {
@@ -320,6 +339,11 @@ func (h *PageHandler) GetByID(c *echo.Context) error {
 	pageID, err := parseID(c.Param("pageId"))
 	if err != nil {
 		return apierror.JSON(c, http.StatusBadRequest, err.Error())
+	}
+
+	locale := c.QueryParam("locale")
+	if locale == "" {
+		return apierror.JSON(c, http.StatusBadRequest, "locale is required")
 	}
 
 	ctx := c.Request().Context()
@@ -347,11 +371,23 @@ func (h *PageHandler) GetByID(c *echo.Context) error {
 		return apierror.Internal(c, "failed to get site locales", err)
 	}
 	localeMap := make(map[int64]db.SiteLocale, len(siteLocales))
+	validLocale := false
 	for _, l := range siteLocales {
 		localeMap[l.ID] = l
+		if l.Code == locale {
+			validLocale = true
+		}
+	}
+	if !validLocale {
+		return apierror.JSON(c, http.StatusBadRequest, fmt.Sprintf("locale '%s' does not belong to this site", locale))
 	}
 
-	return c.JSON(http.StatusOK, toPageResponse(page, toSlugResponses(slugs, localeMap), toSeoResponses(seoRows, localeMap)))
+	resp := toPageResponse(page, toSlugResponses(slugs, localeMap), toSeoResponses(seoRows, localeMap))
+	resp.Layout, err = resolveLayoutLocales(resp.Layout, locale)
+	if err != nil {
+		return apierror.Internal(c, "failed to resolve layout locales", err)
+	}
+	return c.JSON(http.StatusOK, resp)
 }
 
 func (h *PageHandler) List(c *echo.Context) error {
@@ -548,6 +584,11 @@ func (h *PageHandler) Update(c *echo.Context) error {
 		return apierror.JSON(c, http.StatusBadRequest, "invalid request body")
 	}
 
+	locale := c.QueryParam("locale")
+	if locale == "" {
+		return apierror.JSON(c, http.StatusBadRequest, "locale is required")
+	}
+
 	if len(req.Slugs) == 0 {
 		return apierror.JSON(c, http.StatusBadRequest, "at least one slug is required")
 	}
@@ -598,8 +639,13 @@ func (h *PageHandler) Update(c *echo.Context) error {
 		return apierror.Internal(c, "failed to get page", err)
 	}
 
-	layout := req.Layout
-	if layout == nil {
+	var layout json.RawMessage
+	if req.Layout != nil {
+		layout, err = mergeLayoutLocales(req.Layout, existing.Layout, locale)
+		if err != nil {
+			return apierror.Internal(c, "failed to merge layout locales", err)
+		}
+	} else {
 		layout = existing.Layout
 	}
 
@@ -632,6 +678,10 @@ func (h *PageHandler) Update(c *echo.Context) error {
 		if _, ok := localeByCode[s.LocaleCode]; !ok {
 			return apierror.JSON(c, http.StatusBadRequest, fmt.Sprintf("locale_code '%s' does not belong to this site", s.LocaleCode))
 		}
+	}
+
+	if _, ok := localeByCode[locale]; !ok {
+		return apierror.JSON(c, http.StatusBadRequest, fmt.Sprintf("locale '%s' does not belong to this site", locale))
 	}
 
 	// Validate parent_id
@@ -734,7 +784,12 @@ func (h *PageHandler) Update(c *echo.Context) error {
 		return apierror.Internal(c, "failed to commit transaction", err)
 	}
 
-	return c.JSON(http.StatusOK, toPageResponse(page, slugs, seo))
+	resp := toPageResponse(page, slugs, seo)
+	resp.Layout, err = resolveLayoutLocales(resp.Layout, locale)
+	if err != nil {
+		return apierror.Internal(c, "failed to resolve layout locales", err)
+	}
+	return c.JSON(http.StatusOK, resp)
 }
 
 func (h *PageHandler) Delete(c *echo.Context) error {
