@@ -39,12 +39,13 @@ func NewMediaHandler(queries *db.Queries, pool *pgxpool.Pool, mediaDir string) *
 }
 
 type MediaResponse struct {
-	ID        int64  `json:"id"`
-	Filename  string `json:"filename"`
-	MimeType  string `json:"mime_type"`
-	Size      int64  `json:"size"`
-	URL       string `json:"url"`
-	CreatedAt string `json:"created_at"`
+	ID           int64  `json:"id"`
+	Filename     string `json:"filename"`
+	MimeType     string `json:"mime_type"`
+	Size         int64  `json:"size"`
+	URL          string `json:"url"`
+	ThumbnailURL string `json:"thumbnail_url"`
+	CreatedAt    string `json:"created_at"`
 }
 
 func (h *MediaHandler) Upload(c *echo.Context) error {
@@ -96,11 +97,19 @@ func (h *MediaHandler) Upload(c *echo.Context) error {
 
 	url := "/media/" + filename
 
+	var thumbFile string
+	thumbFile, err = generateThumbnail(dstPath, mimeType)
+	if err != nil {
+		os.Remove(dstPath)
+		return apierror.Internal(c, "failed to generate thumbnail", err)
+	}
+
 	media, err := h.queries.CreateMedia(c.Request().Context(), db.CreateMediaParams{
-		Filename: header.Filename,
-		MimeType: mimeType,
-		Size:     size,
-		Url:      url,
+		Filename:     header.Filename,
+		MimeType:     mimeType,
+		Size:         size,
+		Url:          url,
+		ThumbnailUrl: thumbnailURL(h.mediaDir, thumbFile),
 	})
 	if err != nil {
 		os.Remove(dstPath)
@@ -161,7 +170,7 @@ func (h *MediaHandler) List(c *echo.Context) error {
 		return apierror.Internal(c, "failed to count media", err)
 	}
 
-	listSQL := "SELECT id, filename, mime_type, size, url, created_at FROM media" + whereClause + " ORDER BY id ASC"
+	listSQL := "SELECT id, filename, mime_type, size, url, created_at, thumbnail_url FROM media" + whereClause + " ORDER BY id ASC"
 
 	paginated := limit != nil
 	var listArgs []any
@@ -182,7 +191,7 @@ func (h *MediaHandler) List(c *echo.Context) error {
 	var media []db.Medium
 	for rows.Next() {
 		var m db.Medium
-		if err := rows.Scan(&m.ID, &m.Filename, &m.MimeType, &m.Size, &m.Url, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.Filename, &m.MimeType, &m.Size, &m.Url, &m.CreatedAt, &m.ThumbnailUrl); err != nil {
 			return apierror.Internal(c, "failed to scan media", err)
 		}
 		media = append(media, m)
@@ -248,6 +257,11 @@ func (h *MediaHandler) Delete(c *echo.Context) error {
 	filename := strings.TrimPrefix(media.Url, "/media/")
 	os.Remove(filepath.Join(h.mediaDir, filename))
 
+	if media.ThumbnailUrl.Valid {
+		thumbName := strings.TrimPrefix(media.ThumbnailUrl.String, "/media/")
+		os.Remove(filepath.Join(h.mediaDir, thumbName))
+	}
+
 	return c.NoContent(http.StatusNoContent)
 }
 
@@ -268,12 +282,17 @@ func ServeMedia(mediaDir string) echo.HandlerFunc {
 }
 
 func toMediaResponse(m db.Medium) MediaResponse {
+	var thumbURL string
+	if m.ThumbnailUrl.Valid {
+		thumbURL = m.ThumbnailUrl.String
+	}
 	return MediaResponse{
-		ID:        m.ID,
-		Filename:  m.Filename,
-		MimeType:  m.MimeType,
-		Size:      m.Size,
-		URL:       m.Url,
-		CreatedAt: m.CreatedAt.Time.Format(time.RFC3339),
+		ID:           m.ID,
+		Filename:     m.Filename,
+		MimeType:     m.MimeType,
+		Size:         m.Size,
+		URL:          m.Url,
+		ThumbnailURL: thumbURL,
+		CreatedAt:    m.CreatedAt.Time.Format(time.RFC3339),
 	}
 }

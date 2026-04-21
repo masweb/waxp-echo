@@ -1,6 +1,6 @@
 -- name: CreateMedia :one
-INSERT INTO media (filename, mime_type, size, url)
-VALUES ($1, $2, $3, $4)
+INSERT INTO media (filename, mime_type, size, url, thumbnail_url)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: GetMediaByID :one

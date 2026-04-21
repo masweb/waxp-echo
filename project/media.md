@@ -8,9 +8,30 @@ Authorization: Bearer <token>
 
 ---
 
+## Thumbnails
+
+Al subir una imagen se genera automáticamente un thumbnail de 150x150px con recorte tipo **cover** (center crop). El thumbnail se guarda en el mismo directorio que la imagen original.
+
+**Reglas:**
+- Formato: **WebP** (calidad 80). Si la codificación WebP falla, se usa **JPEG** (calidad 85).
+- Los archivos **SVG** no generan thumbnail (`thumbnail_url` es `null`).
+- Nombre del thumbnail: `{nombre_original}_thumb.webp` (o `_thumb.jpg` si falló WebP).
+- Al eliminar una imagen se borran tanto el archivo original como el thumbnail.
+- Los thumbnails se sirven por la misma ruta pública `/media/:name`.
+
+**Ejemplo de recorte cover:**
+
+Una imagen de 1200x800 se recorta al centro a 800x800 y se escala a 150x150:
+
+```
+1200x800 → center crop 800x800 → scale 150x150
+```
+
+---
+
 ## Upload Media
 
-Sube un archivo de imagen al servidor. El archivo se almacena en disco (`MEDIA_DIR`) y se registra en la base de datos.
+Sube un archivo de imagen al servidor. El archivo se almacena en disco (`MEDIA_DIR`), se genera un thumbnail y se registra en la base de datos.
 
 ```
 POST /api/media
@@ -39,9 +60,12 @@ POST /api/media
   "mime_type": "image/jpeg",
   "size": 204800,
   "url": "/media/1713500000000000000.jpg",
+  "thumbnail_url": "/media/1713500000000000000_thumb.webp",
   "created_at": "2026-04-19T12:00:00Z"
 }
 ```
+
+> Para SVGs, `thumbnail_url` es `null`.
 
 **Errors:**
 | Status | When |
@@ -78,14 +102,16 @@ GET /api/media
       "mime_type": "image/jpeg",
       "size": 204800,
       "url": "/media/1713500000000000000.jpg",
+      "thumbnail_url": "/media/1713500000000000000_thumb.webp",
       "created_at": "2026-04-19T12:00:00Z"
     },
     {
       "id": 2,
-      "filename": "logo.png",
-      "mime_type": "image/png",
-      "size": 51200,
-      "url": "/media/1713500000000000001.png",
+      "filename": "logo.svg",
+      "mime_type": "image/svg+xml",
+      "size": 2048,
+      "url": "/media/1713500000000000001.svg",
+      "thumbnail_url": null,
       "created_at": "2026-04-19T12:01:00Z"
     }
   ],
@@ -119,6 +145,7 @@ GET /api/media/:id
   "mime_type": "image/jpeg",
   "size": 204800,
   "url": "/media/1713500000000000000.jpg",
+  "thumbnail_url": "/media/1713500000000000000_thumb.webp",
   "created_at": "2026-04-19T12:00:00Z"
 }
 ```
@@ -134,7 +161,7 @@ GET /api/media/:id
 
 ## Delete Media
 
-Elimina un archivo multimedia. Borra tanto el registro de la base de datos como el fichero en disco.
+Elimina un archivo multimedia. Borra tanto el registro de la base de datos como el fichero original y su thumbnail en disco.
 
 ```
 DELETE /api/media/:id
@@ -153,7 +180,7 @@ DELETE /api/media/:id
 
 ## Serve Media (pública)
 
-Sirve un archivo multimedia desde disco. No requiere autenticación.
+Sirve un archivo multimedia desde disco. No requiere autenticación. Sirve tanto imágenes originales como thumbnails.
 
 ```
 GET /media/:name
