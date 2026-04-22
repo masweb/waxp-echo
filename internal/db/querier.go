@@ -50,6 +50,7 @@ type Querier interface {
 	ListSites(ctx context.Context, arg ListSitesParams) ([]Site, error)
 	UnsetDefaultLocales(ctx context.Context, siteID int64) error
 	UpdatePage(ctx context.Context, arg UpdatePageParams) (Page, error)
+	UpdatePageLayout(ctx context.Context, arg UpdatePageLayoutParams) (Page, error)
 	UpdateSite(ctx context.Context, arg UpdateSiteParams) (Site, error)
 }
 

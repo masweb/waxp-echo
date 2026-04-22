@@ -14,6 +14,12 @@ SET parent_id = $1, layout = $2, published_at = $3, updated_at = NOW()
 WHERE id = $4 AND site_id = $5
 RETURNING id, site_id, blog_id, parent_id, type, layout, published_at, created_at, updated_at;
 
+-- name: UpdatePageLayout :one
+UPDATE pages
+SET layout = $1, updated_at = NOW()
+WHERE id = $2 AND site_id = $3
+RETURNING id, site_id, blog_id, parent_id, type, layout, published_at, created_at, updated_at;
+
 -- name: DeletePage :one
 DELETE FROM pages WHERE id = $1 AND site_id = $2 RETURNING id;
 

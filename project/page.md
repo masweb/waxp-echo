@@ -507,6 +507,87 @@ DELETE /api/sites/:id/pages/:pageId
 
 ---
 
+## List Page Revisions
+
+Lista las revisiones de una página de forma paginada. Cada vez que se crea o actualiza el `layout` de una página se genera automáticamente una revisión.
+
+```
+GET /api/sites/:id/pages/:pageId/revisions
+```
+
+**Query params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `cursor` | int64 | ID de la última revisión de la página anterior |
+| `limit` | int32 | Cantidad de elementos (max 100). Sin limite = todos |
+| `filter[id]` | int64 | Filtrar por ID |
+| `filter[revision_number]` | int32 | Filtrar por número de revisión |
+
+**Response 200:**
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "revision_number": 1,
+      "created_at": "2026-04-22T10:00:00Z"
+    },
+    {
+      "id": 2,
+      "revision_number": 2,
+      "created_at": "2026-04-22T11:30:00Z"
+    }
+  ],
+  "next_cursor": 2,
+  "total": 15,
+  "has_more": true
+}
+```
+
+**Errors:**
+| Status | When |
+|--------|------|
+| 400 | Site ID o page ID inválido |
+| 401 | Token missing, invalid or expired |
+| 404 | Página no encontrada |
+
+---
+
+## Restore Page Revision
+
+Restaura el `layout` de una revisión anterior en la página actual. El layout actual se guarda automáticamente como revisión antes de sobreescribirse (trigger de BD), por lo que siempre se puede volver atrás restaurando la revisión anterior.
+
+```
+POST /api/sites/:id/pages/:pageId/revisions/:revisionId/restore?locale=es
+```
+
+**Response 200:** *(devuelve la página completa con el layout restaurado, procesado para el locale solicitado)*
+```json
+{
+  "id": 5,
+  "site_id": 1,
+  "blog_id": null,
+  "parent_id": null,
+  "type": "page",
+  "layout": { "...": "layout restaurado con solo el locale solicitado" },
+  "published_at": "2026-04-22T10:00:00Z",
+  "seo": [],
+  "slugs": [],
+  "created_at": "2026-04-22T10:00:00Z",
+  "updated_at": "2026-04-22T12:00:00Z"
+}
+```
+
+**Errors:**
+| Status | When |
+|--------|------|
+| 400 | Site ID, page ID o revision ID inválido, locale requerido, layout idéntico al actual |
+| 401 | Token missing, invalid or expired |
+| 404 | Página o revisión no encontrada |
+
+---
+
 ## Routes
 
 Devuelve el mapa completo de rutas por idioma para un site. Incluye páginas, blogs y posts publicados. Diseñado para cargar en vue-router.

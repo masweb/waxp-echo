@@ -67,6 +67,8 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	sites.POST("/:id/pages", pageHandler.Create)
 	sites.GET("/:id/pages", pageHandler.List)
 	sites.GET("/:id/pages/:pageId", pageHandler.GetByID)
+	sites.GET("/:id/pages/:pageId/revisions", pageHandler.ListRevisions)
+	sites.POST("/:id/pages/:pageId/revisions/:revisionId/restore", pageHandler.RestoreRevision)
 	sites.PUT("/:id/pages/:pageId", pageHandler.Update)
 	sites.DELETE("/:id/pages/:pageId", pageHandler.Delete)
 	sites.GET("/:id/routes", pageHandler.Routes)

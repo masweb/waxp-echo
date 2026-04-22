@@ -90,7 +90,17 @@ CREATE TABLE media (
     mime_type VARCHAR(100) NOT NULL,
     size BIGINT NOT NULL,
     url VARCHAR(1000) NOT NULL,
+    thumbnail_url VARCHAR(1000),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE page_revisions (
+    id BIGSERIAL PRIMARY KEY,
+    page_id BIGINT NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
+    layout JSONB NOT NULL,
+    revision_number INTEGER NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(page_id, revision_number)
 );
 
 CREATE INDEX idx_pages_site ON pages(site_id);
@@ -104,6 +114,31 @@ CREATE INDEX idx_page_seo_locale ON page_seo(locale_id);
 CREATE INDEX idx_pages_layout ON pages USING gin(layout);
 CREATE INDEX idx_section_counters_site ON section_counters(site_id);
 CREATE INDEX idx_media_created_at ON media(created_at DESC);
+
+CREATE INDEX idx_page_revisions_page ON page_revisions(page_id);
+CREATE INDEX idx_page_revisions_created ON page_revisions(created_at DESC);
+
+CREATE OR REPLACE FUNCTION fn_page_revision()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO page_revisions (page_id, layout, revision_number)
+    VALUES (
+        NEW.id,
+        NEW.layout,
+        COALESCE((
+            SELECT MAX(revision_number) + 1
+            FROM page_revisions
+            WHERE page_id = NEW.id
+        ), 1)
+    );
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_page_revision
+AFTER INSERT OR UPDATE OF layout ON pages
+FOR EACH ROW
+EXECUTE FUNCTION fn_page_revision();
 
 INSERT INTO users (email, password_hash)
 VALUES ('admin@waxp.com', '$2a$10$ysLGEY/eUOniH2eVzRGpQ.SmVS7PfQZOLaQ4QGgfcpF0E8uO98Tz6')

@@ -1,3 +1,6 @@
+DROP TRIGGER IF EXISTS trg_page_revision ON pages;
+DROP FUNCTION IF EXISTS fn_page_revision();
+DROP TABLE IF EXISTS page_revisions;
 DROP TABLE IF EXISTS media;
 DROP TABLE IF EXISTS block_counters;
 DROP TABLE IF EXISTS section_counters;

@@ -33,8 +33,8 @@ type Medium struct {
 	MimeType     string             `json:"mime_type"`
 	Size         int64              `json:"size"`
 	Url          string             `json:"url"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	ThumbnailUrl pgtype.Text        `json:"thumbnail_url"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 }
 
 type Page struct {
@@ -47,6 +47,14 @@ type Page struct {
 	PublishedAt pgtype.Timestamptz `json:"published_at"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PageRevision struct {
+	ID             int64              `json:"id"`
+	PageID         int64              `json:"page_id"`
+	Layout         []byte             `json:"layout"`
+	RevisionNumber int32              `json:"revision_number"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type PageSeo struct {

@@ -25,7 +25,7 @@ func (q *Queries) CountMedia(ctx context.Context) (int64, error) {
 const createMedia = `-- name: CreateMedia :one
 INSERT INTO media (filename, mime_type, size, url, thumbnail_url)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, filename, mime_type, size, url, created_at, thumbnail_url
+RETURNING id, filename, mime_type, size, url, thumbnail_url, created_at
 `
 
 type CreateMediaParams struct {
@@ -51,8 +51,8 @@ func (q *Queries) CreateMedia(ctx context.Context, arg CreateMediaParams) (Mediu
 		&i.MimeType,
 		&i.Size,
 		&i.Url,
-		&i.CreatedAt,
 		&i.ThumbnailUrl,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -60,7 +60,7 @@ func (q *Queries) CreateMedia(ctx context.Context, arg CreateMediaParams) (Mediu
 const deleteMedia = `-- name: DeleteMedia :one
 DELETE FROM media
 WHERE id = $1
-RETURNING id, filename, mime_type, size, url, created_at, thumbnail_url
+RETURNING id, filename, mime_type, size, url, thumbnail_url, created_at
 `
 
 func (q *Queries) DeleteMedia(ctx context.Context, id int64) (Medium, error) {
@@ -72,14 +72,14 @@ func (q *Queries) DeleteMedia(ctx context.Context, id int64) (Medium, error) {
 		&i.MimeType,
 		&i.Size,
 		&i.Url,
-		&i.CreatedAt,
 		&i.ThumbnailUrl,
+		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const getMediaByID = `-- name: GetMediaByID :one
-SELECT id, filename, mime_type, size, url, created_at, thumbnail_url FROM media
+SELECT id, filename, mime_type, size, url, thumbnail_url, created_at FROM media
 WHERE id = $1
 `
 
@@ -92,14 +92,14 @@ func (q *Queries) GetMediaByID(ctx context.Context, id int64) (Medium, error) {
 		&i.MimeType,
 		&i.Size,
 		&i.Url,
-		&i.CreatedAt,
 		&i.ThumbnailUrl,
+		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const listMedia = `-- name: ListMedia :many
-SELECT id, filename, mime_type, size, url, created_at, thumbnail_url FROM media
+SELECT id, filename, mime_type, size, url, thumbnail_url, created_at FROM media
 WHERE ($1::BIGINT IS NULL OR id > $1)
 ORDER BY id ASC
 LIMIT $2
@@ -125,8 +125,8 @@ func (q *Queries) ListMedia(ctx context.Context, arg ListMediaParams) ([]Medium,
 			&i.MimeType,
 			&i.Size,
 			&i.Url,
-			&i.CreatedAt,
 			&i.ThumbnailUrl,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

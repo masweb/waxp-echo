@@ -800,6 +800,229 @@ func (h *PageHandler) Update(c *echo.Context) error {
 	return c.JSON(http.StatusOK, resp)
 }
 
+type PageRevisionResponse struct {
+	ID            int64  `json:"id"`
+	RevisionNumber int32 `json:"revision_number"`
+	CreatedAt     string `json:"created_at"`
+}
+
+func (h *PageHandler) ListRevisions(c *echo.Context) error {
+	siteID, err := parseID(c.Param("id"))
+	if err != nil {
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
+	}
+
+	pageID, err := parseID(c.Param("pageId"))
+	if err != nil {
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
+	}
+
+	ctx := c.Request().Context()
+
+	_, err = h.queries.GetPageByID(ctx, db.GetPageByIDParams{ID: pageID, SiteID: siteID})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return apierror.JSON(c, http.StatusNotFound, "page not found")
+		}
+		return apierror.Internal(c, "failed to get page", err)
+	}
+
+	const maxLimit int32 = 100
+
+	limitStr := c.QueryParam("limit")
+	cursorStr := c.QueryParam("cursor")
+
+	var limit *int32
+	if limitStr != "" {
+		parsed, err := strconv.ParseInt(limitStr, 10, 32)
+		if err != nil || parsed <= 0 {
+			return apierror.JSON(c, http.StatusBadRequest, "invalid limit")
+		}
+		v := int32(parsed)
+		if v > maxLimit {
+			v = maxLimit
+		}
+		limit = &v
+	}
+
+	var cursor *int64
+	if cursorStr != "" {
+		parsed, err := strconv.ParseInt(cursorStr, 10, 64)
+		if err != nil || parsed < 0 {
+			return apierror.JSON(c, http.StatusBadRequest, "invalid cursor")
+		}
+		cursor = &parsed
+	}
+
+	builder := filter.NewBuilder(map[string]string{
+		"id":               "id",
+		"revision_number":  "revision_number",
+	})
+	if err := builder.Parse(c.Request().URL.Query()); err != nil {
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
+	}
+
+	result := builder.Build(cursor, 2)
+
+	whereClause := " WHERE page_id = $1"
+	args := []any{pageID}
+	if result.WhereClause != "" {
+		whereClause += " AND " + result.WhereClause
+		args = append(args, result.Args...)
+	}
+
+	countSQL := "SELECT COUNT(*) FROM page_revisions" + whereClause
+	var total int64
+	if err := h.pool.QueryRow(ctx, countSQL, args...).Scan(&total); err != nil {
+		return apierror.Internal(c, "failed to count page revisions", err)
+	}
+
+	listSQL := "SELECT id, revision_number, created_at FROM page_revisions" + whereClause + " ORDER BY id ASC"
+
+	paginated := limit != nil
+	var listArgs []any
+	if paginated {
+		nextParam := len(args) + 1
+		listSQL += fmt.Sprintf(" LIMIT $%d", nextParam)
+		listArgs = append(append([]any{}, args...), int64(*limit))
+	} else {
+		listArgs = args
+	}
+
+	rows, err := h.pool.Query(ctx, listSQL, listArgs...)
+	if err != nil {
+		return apierror.Internal(c, "failed to list page revisions", err)
+	}
+	defer rows.Close()
+
+	type revisionRow struct {
+		ID             int64
+		RevisionNumber int32
+		CreatedAt      pgtype.Timestamptz
+	}
+
+	var revisions []revisionRow
+	for rows.Next() {
+		var r revisionRow
+		if err := rows.Scan(&r.ID, &r.RevisionNumber, &r.CreatedAt); err != nil {
+			return apierror.Internal(c, "failed to scan page revision", err)
+		}
+		revisions = append(revisions, r)
+	}
+	if err := rows.Err(); err != nil {
+		return apierror.Internal(c, "failed to list page revisions", err)
+	}
+
+	data := make([]PageRevisionResponse, 0, len(revisions))
+	for _, r := range revisions {
+		data = append(data, PageRevisionResponse{
+			ID:             r.ID,
+			RevisionNumber: r.RevisionNumber,
+			CreatedAt:      r.CreatedAt.Time.Format(time.RFC3339),
+		})
+	}
+
+	var nextCursor *int64
+	var hasMore bool
+	if paginated {
+		hasMore = len(revisions) == int(*limit)
+		if hasMore && len(revisions) > 0 {
+			lastID := revisions[len(revisions)-1].ID
+			nextCursor = &lastID
+		}
+	}
+
+	return c.JSON(http.StatusOK, PaginatedResponse[PageRevisionResponse]{
+		Data:       data,
+		NextCursor: nextCursor,
+		Total:      total,
+		HasMore:    hasMore,
+	})
+}
+
+func (h *PageHandler) RestoreRevision(c *echo.Context) error {
+	siteID, err := parseID(c.Param("id"))
+	if err != nil {
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
+	}
+
+	pageID, err := parseID(c.Param("pageId"))
+	if err != nil {
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
+	}
+
+	revisionID, err := parseID(c.Param("revisionId"))
+	if err != nil {
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
+	}
+
+	locale := c.QueryParam("locale")
+	if locale == "" {
+		return apierror.JSON(c, http.StatusBadRequest, "locale is required")
+	}
+
+	ctx := c.Request().Context()
+
+	page, err := h.queries.GetPageByID(ctx, db.GetPageByIDParams{ID: pageID, SiteID: siteID})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return apierror.JSON(c, http.StatusNotFound, "page not found")
+		}
+		return apierror.Internal(c, "failed to get page", err)
+	}
+
+	var revisionLayout json.RawMessage
+	err = h.pool.QueryRow(ctx,
+		"SELECT layout FROM page_revisions WHERE id = $1 AND page_id = $2",
+		revisionID, pageID,
+	).Scan(&revisionLayout)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return apierror.JSON(c, http.StatusNotFound, "revision not found")
+		}
+		return apierror.Internal(c, "failed to get revision", err)
+	}
+
+	if string(revisionLayout) == string(page.Layout) {
+		return apierror.JSON(c, http.StatusBadRequest, "revision layout is identical to current page layout")
+	}
+
+	updated, err := h.queries.UpdatePageLayout(ctx, db.UpdatePageLayoutParams{
+		Layout: revisionLayout,
+		ID:     pageID,
+		SiteID: siteID,
+	})
+	if err != nil {
+		return apierror.Internal(c, "failed to restore revision", err)
+	}
+
+	siteLocales, err := h.queries.ListSiteLocales(ctx, siteID)
+	if err != nil {
+		return apierror.Internal(c, "failed to get site locales", err)
+	}
+	localeMap := make(map[int64]db.SiteLocale, len(siteLocales))
+	for _, l := range siteLocales {
+		localeMap[l.ID] = l
+	}
+
+	slugs, err := h.queries.GetPageSlugsByPageID(ctx, pageID)
+	if err != nil {
+		return apierror.Internal(c, "failed to get page slugs", err)
+	}
+
+	seoRows, err := h.queries.GetPageSeoByPageID(ctx, pageID)
+	if err != nil {
+		return apierror.Internal(c, "failed to get page seo", err)
+	}
+
+	resp := toPageResponse(updated, toSlugResponses(slugs, localeMap), toSeoResponses(seoRows, localeMap))
+	resp.Layout, err = resolveLayoutLocales(resp.Layout, locale)
+	if err != nil {
+		return apierror.Internal(c, "failed to resolve layout locales", err)
+	}
+	return c.JSON(http.StatusOK, resp)
+}
+
 func (h *PageHandler) Delete(c *echo.Context) error {
 	siteID, err := parseID(c.Param("id"))
 	if err != nil {

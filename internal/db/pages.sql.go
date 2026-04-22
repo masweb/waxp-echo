@@ -559,3 +559,33 @@ func (q *Queries) UpdatePage(ctx context.Context, arg UpdatePageParams) (Page, e
 	)
 	return i, err
 }
+
+const updatePageLayout = `-- name: UpdatePageLayout :one
+UPDATE pages
+SET layout = $1, updated_at = NOW()
+WHERE id = $2 AND site_id = $3
+RETURNING id, site_id, blog_id, parent_id, type, layout, published_at, created_at, updated_at
+`
+
+type UpdatePageLayoutParams struct {
+	Layout []byte `json:"layout"`
+	ID     int64  `json:"id"`
+	SiteID int64  `json:"site_id"`
+}
+
+func (q *Queries) UpdatePageLayout(ctx context.Context, arg UpdatePageLayoutParams) (Page, error) {
+	row := q.db.QueryRow(ctx, updatePageLayout, arg.Layout, arg.ID, arg.SiteID)
+	var i Page
+	err := row.Scan(
+		&i.ID,
+		&i.SiteID,
+		&i.BlogID,
+		&i.ParentID,
+		&i.Type,
+		&i.Layout,
+		&i.PublishedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
