@@ -52,7 +52,7 @@ type CreatePageRequest struct {
 type UpdatePageRequest struct {
 	ParentID    *int64          `json:"parent_id"`
 	Layout      json.RawMessage `json:"layout"`
-	PublishedAt *string         `json:"published_at"`
+	PublishedAt json.RawMessage `json:"published_at"`
 	Seo         []PageSeoInput  `json:"seo"`
 	Slugs       []PageSlugInput `json:"slugs"`
 }
@@ -651,11 +651,19 @@ func (h *PageHandler) Update(c *echo.Context) error {
 
 	var publishedAt pgtype.Timestamptz
 	if req.PublishedAt != nil {
-		t, err := time.Parse(time.RFC3339, *req.PublishedAt)
-		if err != nil {
-			return apierror.JSON(c, http.StatusBadRequest, "invalid published_at format, use ISO 8601")
+		if string(req.PublishedAt) == "null" {
+			publishedAt = pgtype.Timestamptz{Valid: false}
+		} else {
+			var s string
+			if err := json.Unmarshal(req.PublishedAt, &s); err != nil {
+				return apierror.JSON(c, http.StatusBadRequest, "invalid published_at format, use ISO 8601 string")
+			}
+			t, err := time.Parse(time.RFC3339, s)
+			if err != nil {
+				return apierror.JSON(c, http.StatusBadRequest, "invalid published_at format, use ISO 8601")
+			}
+			publishedAt = pgtype.Timestamptz{Time: t, Valid: true}
 		}
-		publishedAt = pgtype.Timestamptz{Time: t, Valid: true}
 	} else {
 		publishedAt = existing.PublishedAt
 	}
