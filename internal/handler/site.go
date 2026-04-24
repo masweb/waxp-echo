@@ -18,6 +18,7 @@ import (
 	"waxp/echo/internal/apierror"
 	"waxp/echo/internal/db"
 	"waxp/echo/internal/filter"
+	"waxp/echo/internal/i18n"
 )
 
 type SiteHandler struct {
@@ -315,7 +316,7 @@ func (h *SiteHandler) GetByID(c *echo.Context) error {
 		return err
 	}
 
-	resolvedOptions, err := resolveLayoutLocales(site.Options, locale)
+	resolvedOptions, err := i18n.Resolve(site.Options, locale)
 	if err != nil {
 		return apierror.Internal(c, "failed to resolve options locales", err)
 	}
@@ -563,7 +564,7 @@ func (h *SiteHandler) Update(c *echo.Context) error {
 		if err := validateJSON(options); err != nil {
 			return apierror.JSON(c, http.StatusBadRequest, "options: "+err.Error())
 		}
-		options, err = mergeLayoutLocales(options, existing.Options, locale)
+		options, err = i18n.Merge(options, existing.Options, locale)
 		if err != nil {
 			return apierror.Internal(c, "failed to merge options locales", err)
 		}
@@ -586,7 +587,7 @@ func (h *SiteHandler) Update(c *echo.Context) error {
 		return apierror.Internal(c, "failed to update site", err)
 	}
 
-	resolvedOptions, err := resolveLayoutLocales(site.Options, locale)
+	resolvedOptions, err := i18n.Resolve(site.Options, locale)
 	if err != nil {
 		return apierror.Internal(c, "failed to resolve options locales", err)
 	}

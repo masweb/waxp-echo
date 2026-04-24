@@ -1,6 +1,6 @@
 -- name: CreateBlockCounter :one
 INSERT INTO block_counters (site_id, current_value)
-VALUES ($1, 2)
+VALUES ($1, 4)
 RETURNING site_id, current_value;
 
 -- name: GetNextBlockID :one

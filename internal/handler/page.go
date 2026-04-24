@@ -17,6 +17,7 @@ import (
 	"waxp/echo/internal/apierror"
 	"waxp/echo/internal/db"
 	"waxp/echo/internal/filter"
+	"waxp/echo/internal/i18n"
 )
 
 type PageHandler struct {
@@ -251,7 +252,7 @@ func (h *PageHandler) Create(c *echo.Context) error {
 		return apierror.JSON(c, http.StatusBadRequest, fmt.Sprintf("locale '%s' does not belong to this site", locale))
 	}
 
-	layout, err = wrapLayoutLocales(layout, locale)
+	layout, err = i18n.Wrap(layout, locale)
 	if err != nil {
 		return apierror.Internal(c, "failed to wrap layout locales", err)
 	}
@@ -323,7 +324,7 @@ func (h *PageHandler) Create(c *echo.Context) error {
 	}
 
 	resp := toPageResponse(page, slugs, seo)
-	resp.Layout, err = resolveLayoutLocales(resp.Layout, locale)
+	resp.Layout, err = i18n.Resolve(resp.Layout, locale)
 	if err != nil {
 		return apierror.Internal(c, "failed to resolve layout locales", err)
 	}
@@ -383,7 +384,7 @@ func (h *PageHandler) GetByID(c *echo.Context) error {
 	}
 
 	resp := toPageResponse(page, toSlugResponses(slugs, localeMap), toSeoResponses(seoRows, localeMap))
-	resp.Layout, err = resolveLayoutLocales(resp.Layout, locale)
+	resp.Layout, err = i18n.Resolve(resp.Layout, locale)
 	if err != nil {
 		return apierror.Internal(c, "failed to resolve layout locales", err)
 	}
@@ -641,7 +642,7 @@ func (h *PageHandler) Update(c *echo.Context) error {
 
 	var layout json.RawMessage
 	if req.Layout != nil {
-		layout, err = mergeLayoutLocales(req.Layout, existing.Layout, locale)
+		layout, err = i18n.Merge(req.Layout, existing.Layout, locale)
 		if err != nil {
 			return apierror.Internal(c, "failed to merge layout locales", err)
 		}
@@ -793,7 +794,7 @@ func (h *PageHandler) Update(c *echo.Context) error {
 	}
 
 	resp := toPageResponse(page, slugs, seo)
-	resp.Layout, err = resolveLayoutLocales(resp.Layout, locale)
+	resp.Layout, err = i18n.Resolve(resp.Layout, locale)
 	if err != nil {
 		return apierror.Internal(c, "failed to resolve layout locales", err)
 	}
@@ -1016,7 +1017,7 @@ func (h *PageHandler) RestoreRevision(c *echo.Context) error {
 	}
 
 	resp := toPageResponse(updated, toSlugResponses(slugs, localeMap), toSeoResponses(seoRows, localeMap))
-	resp.Layout, err = resolveLayoutLocales(resp.Layout, locale)
+	resp.Layout, err = i18n.Resolve(resp.Layout, locale)
 	if err != nil {
 		return apierror.Internal(c, "failed to resolve layout locales", err)
 	}
