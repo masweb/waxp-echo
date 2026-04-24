@@ -28,9 +28,12 @@ SET name = $1, domain = $2, options = $3, updated_at = NOW()
 WHERE id = $4
 RETURNING id, name, domain, options, created_at, updated_at, is_live;
 
--- name: SetSiteLive :exec
+-- name: ClearLiveSites :exec
 UPDATE sites SET is_live = false WHERE is_live = true;
-UPDATE sites SET is_live = true WHERE id = $1;
+
+-- name: ActivateSiteLive :one
+UPDATE sites SET is_live = true, updated_at = NOW() WHERE id = $1
+RETURNING id, name, domain, options, created_at, updated_at, is_live;
 
 -- name: DeleteSite :one
 DELETE FROM sites WHERE id = $1 RETURNING id;

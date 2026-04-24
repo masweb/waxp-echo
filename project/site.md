@@ -363,6 +363,39 @@ DELETE /api/sites/:id/locales/:localeCode
 
 ---
 
+## Set Site Live
+
+Marca un site como `is_live = true`. Desactiva automáticamente el site que estuviera live anteriormente (si lo hubiera) y regenera el HTML de todas sus páginas publicadas para todos los locales.
+
+```
+PUT /api/sites/:id/live
+```
+
+> Solo puede haber un site live a la vez. La operación es atómica (transacción) para el cambio de estado, y la regeneración de páginas se ejecuta después del commit.
+
+**Response 200:**
+```json
+{
+  "id": 1,
+  "name": "Mi Blog",
+  "domain": "miblog.com",
+  "options": {},
+  "locales": [
+    { "code": "es", "is_default": true },
+    { "code": "en", "is_default": false }
+  ]
+}
+```
+
+**Errors:**
+| Status | When |
+|--------|------|
+| 400 | ID inválido |
+| 401 | Token missing, invalid or expired |
+| 404 | Site no encontrado |
+
+---
+
 ## Delete Site
 
 ```

@@ -17,6 +17,7 @@
 | `POST` | `/api/sites` | | Create site with default pages |
 | `GET` | `/api/sites/:id` | `locale` (opcional) | Get site (options resolved to locale, default if omitted) |
 | `PUT` | `/api/sites/:id` | `locale` **(required)** | Update site (options merged by locale) |
+| `PUT` | `/api/sites/:id/live` | | Set site as live (desactiva el anterior, regenera páginas) |
 | `DELETE` | `/api/sites/:id` | | Delete site |
 | `POST` | `/api/sites/:id/locales` | | Add locale to site |
 | `DELETE` | `/api/sites/:id/locales/:localeCode` | | Remove locale from site |

@@ -39,28 +39,42 @@ func buildCSS(sections []sectionRender, opts SiteOptions) string {
 }
 
 func writeBaseBlockCSS(b *strings.Builder) {
-	b.WriteString(".b{position:relative;overflow:hidden;display:flex;align-items:start;}")
+	b.WriteString(".b{position:relative;display:flex;}")
+	b.WriteString(".b-clip{overflow:hidden;}")
 	b.WriteString(".b-overlay{position:absolute;inset:0;pointer-events:none;z-index:0;}")
 	b.WriteString(".b-inner{position:relative;z-index:1;width:100%;height:100%;display:flex;align-items:start;}")
+	b.WriteString(".b-center{align-items:center!important;justify-content:center!important;}")
 	b.WriteString(".b-link{color:inherit;text-decoration:none;}")
 	b.WriteString(".b-link:hover{opacity:0.85;}")
 	b.WriteString(".sr{display:flex;justify-content:center;}")
 	b.WriteString(".s{display:grid;margin:0 auto;width:100%;}")
 	b.WriteString(".s-overlay{position:absolute;inset:0;pointer-events:none;z-index:0;}")
+
+	b.WriteString(".b-tiptap>*+*{margin-top:.65em;}")
+	b.WriteString(".b-tiptap :last-child{margin-bottom:0;}")
 	b.WriteString(".b-tiptap img{max-width:100%;height:auto;}")
 	b.WriteString(".b-tiptap a{color:inherit;text-decoration:underline;}")
+	b.WriteString(".b-tiptap ul,.b-tiptap ol{margin-left:1.5em;}")
+	b.WriteString(".b-tiptap blockquote{padding-left:1em;border-left:3px solid currentColor;opacity:.7;}")
 
 	b.WriteString(".btn-block{display:flex;align-items:center;justify-content:center;}")
-	b.WriteString(".btn-b{border:none;cursor:pointer;text-align:center;line-height:inherit;transition:background-color .15s ease,text-color .15s ease;}")
-	b.WriteString(".dm-toggle{background:none;border:none;cursor:pointer;padding:0;line-height:1;}")
-	b.WriteString(".lang-select{width:100%;border:none;background:transparent;padding:0 .5rem;outline:none;box-shadow:none;cursor:pointer;text-align:center;text-align-last:center;}")
+	b.WriteString(".btn-b{border:none;cursor:pointer;text-align:center;line-height:inherit;transition:background-color .15s ease,color .15s ease;}")
+	b.WriteString(".dm-toggle{font:inherit;background:none;border:none;cursor:pointer;padding:0;line-height:1;color:var(--waxp-text);display:flex;align-items:center;justify-content:center;width:100%;height:100%;user-select:none;-webkit-user-select:none;}")
+	b.WriteString(":root[data-theme=\"dark\"] .dm-toggle{color:var(--waxp-text);}")
+	b.WriteString(".dm-toggle svg{width:1.5em;height:1.5em;}")
+	b.WriteString(".dm-icon-sun{display:none;}")
+	b.WriteString(":root[data-theme=\"dark\"] .dm-icon-moon{display:none;}")
+	b.WriteString(":root[data-theme=\"dark\"] .dm-icon-sun{display:inline-block;}")
+	b.WriteString(".lang-select{font:inherit;appearance:none;-webkit-appearance:none;width:100%;height:100%;border:none;background:transparent;padding:0 .5rem;outline:none;box-shadow:none;cursor:pointer;text-align:center;text-align-last:center;color:var(--waxp-text);}")
+	b.WriteString(":root[data-theme=\"dark\"] .lang-select{color:var(--waxp-text);}")
 	b.WriteString(".menu-nav{width:100%;height:100%;display:flex;align-items:center;position:relative;z-index:1;}")
 	b.WriteString(".menu-list{display:flex;align-items:center;gap:1.5rem;list-style:none;margin:0;padding:0;width:100%;}")
 	b.WriteString(".menu-item{position:relative;white-space:nowrap;}")
-	b.WriteString(".menu-link{color:var(--m-color);text-decoration:none;cursor:pointer;transition:color .15s ease;}")
+	b.WriteString(".menu-link{text-decoration:none;cursor:pointer;transition:color .15s ease;}")
 	b.WriteString(".menu-link:hover{color:var(--m-hover)!important;}")
-	b.WriteString(".menu-sub{position:absolute;top:100%;left:0;list-style:none;margin:0;padding:.35rem 0;background:var(--m-sub-bg);border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.12);z-index:99999;min-width:180px;}")
-	b.WriteString(".menu-sublink{display:block;padding:.35rem 1rem;color:var(--m-color);text-decoration:none;cursor:pointer;transition:color .15s ease;white-space:nowrap;}")
+	b.WriteString(".menu-sub{display:none;position:absolute;top:100%;left:0;list-style:none;margin:0;padding:.35rem 0;border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.12);z-index:99999;min-width:180px;}")
+	b.WriteString(".menu-item:hover>.menu-sub{display:block;}")
+	b.WriteString(".menu-sublink{display:block;padding:.35rem 1rem;text-decoration:none;cursor:pointer;transition:color .15s ease;white-space:nowrap;}")
 	b.WriteString(".menu-sublink:hover{color:var(--m-hover)!important;}")
 	b.WriteString(".space-divider{position:absolute;top:50%;left:0;right:0;transform:translateY(-50%);pointer-events:none;}")
 	b.WriteString(".img-block{display:flex;align-items:center;justify-content:center;}")
@@ -107,9 +121,15 @@ func writeSectionCSS(b *strings.Builder, sr sectionRender, opts SiteOptions) {
 	fmt.Fprintf(b, ".%s-row{", p)
 	writeBackgroundCSS(b, s.Style.SectionBackground, "light")
 	writeSidesCSS(b, "margin", s.Style.Margin)
-	b.WriteString("overflow:hidden;}")
+	if sr.isFixed {
+		b.WriteString("position:sticky;top:0;z-index:100;")
+	}
+	b.WriteString("}")
 	fmt.Fprintf(b, ":root[data-theme=\"dark\"] .%s-row{", p)
 	writeBackgroundCSS(b, s.Style.SectionBackground, "dark")
+	if sr.isFixed {
+		b.WriteString("position:sticky;top:0;z-index:100;")
+	}
 	b.WriteString("}")
 
 	maxW := desktopWidth
@@ -118,9 +138,12 @@ func writeSectionCSS(b *strings.Builder, sr sectionRender, opts SiteOptions) {
 	}
 
 	fmt.Fprintf(b, ".%s{position:relative;", p)
-	fmt.Fprintf(b, "grid-template-columns:repeat(%d,1fr);grid-template-rows:repeat(%d,1fr);gap:%dpx;",
+	fmt.Fprintf(b, "grid-template-columns:repeat(%d,1fr);grid-template-rows:repeat(%d,minmax(20px,1fr));gap:%dpx;",
 		s.Desktop.Cols, s.Desktop.Rows, s.Desktop.Gap,
 	)
+	if s.Desktop.Rows > 0 {
+		fmt.Fprintf(b, "aspect-ratio:%d/%d;", s.Desktop.Cols, s.Desktop.Rows)
+	}
 	if !s.Style.FullWidth {
 		fmt.Fprintf(b, "max-width:%dpx;", maxW)
 	}
@@ -153,7 +176,7 @@ func writeSectionCSS(b *strings.Builder, sr sectionRender, opts SiteOptions) {
 	fmt.Fprintf(b, "@media(max-width:%dpx){", tabletBP)
 	fmt.Fprintf(b, ".%s{grid-template-columns:repeat(%d,1fr);gap:%dpx;}", p, s.Tablet.Cols, s.Tablet.Gap)
 	if s.Tablet.Rows > 0 {
-		fmt.Fprintf(b, ".%s{grid-template-rows:repeat(%d,1fr);}", p, s.Tablet.Rows)
+		fmt.Fprintf(b, ".%s{grid-template-rows:repeat(%d,minmax(20px,1fr));aspect-ratio:%d/%d;}", p, s.Tablet.Rows, s.Tablet.Cols, s.Tablet.Rows)
 	}
 	for _, blk := range s.Blocks {
 		c := blk.T
@@ -168,7 +191,7 @@ func writeSectionCSS(b *strings.Builder, sr sectionRender, opts SiteOptions) {
 	fmt.Fprintf(b, "@media(max-width:%dpx){", mobileBP)
 	fmt.Fprintf(b, ".%s{grid-template-columns:repeat(%d,1fr);gap:%dpx;}", p, s.Mobile.Cols, s.Mobile.Gap)
 	if s.Mobile.Rows > 0 {
-		fmt.Fprintf(b, ".%s{grid-template-rows:repeat(%d,1fr);}", p, s.Mobile.Rows)
+		fmt.Fprintf(b, ".%s{grid-template-rows:repeat(%d,minmax(20px,1fr));aspect-ratio:%d/%d;}", p, s.Mobile.Rows, s.Mobile.Cols, s.Mobile.Rows)
 	}
 	for _, blk := range s.Blocks {
 		c := blk.M
@@ -203,6 +226,9 @@ func writeBlockCSS(b *strings.Builder, blk Block, prefix string, opts SiteOption
 	writeSidesCSS(b, "padding", blk.Style.Padding)
 	if bgNeedsClip(blk.Style.Background) {
 		b.WriteString("overflow:hidden;")
+	}
+	if blk.Type == "Menu" {
+		b.WriteString("overflow:visible;")
 	}
 	b.WriteString("}")
 
@@ -420,7 +446,9 @@ func bgNeedsClip(bg Background) bool {
 func writeBorderCSS(b *strings.Builder, border Border) {
 	r := border.Radius
 	if r.TL != "" || r.TR != "" || r.BR != "" || r.BL != "" {
-		fmt.Fprintf(b, "border-radius:%s %s %s %s;", r.TL, r.TR, r.BR, r.BL)
+		fmt.Fprintf(b, "border-radius:%spx %spx %spx %spx;",
+			cssVal(r.TL), cssVal(r.TR), cssVal(r.BR), cssVal(r.BL),
+		)
 	}
 	ab := border.AllBorders
 	if ab.Active {
@@ -482,4 +510,14 @@ func buildGoogleFontsURL(fonts []SiteFont) string {
 
 func round2(f float64) float64 {
 	return math.Round(f*100) / 100
+}
+
+func cssVal(s string) string {
+	if s == "" || s == "0" {
+		return "0"
+	}
+	if strings.ContainsAny(s, "em%pxvhvw") {
+		return s
+	}
+	return s
 }

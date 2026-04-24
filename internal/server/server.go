@@ -38,7 +38,13 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 
 	queries := db.New(pool)
 	authHandler := handler.NewAuthHandler(queries, cfg.JWTSecret)
-	siteHandler := handler.NewSiteHandler(queries, pool)
+
+	mediaBase := ""
+	if cfg.Env == "development" {
+		mediaBase = "http://localhost" + cfg.ServerPort
+	}
+
+	siteHandler := handler.NewSiteHandler(queries, pool, mediaBase)
 	localeHandler := handler.NewLocaleHandler(queries)
 
 	e.GET("/health", handler.Health)
@@ -57,14 +63,10 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	sites.GET("", siteHandler.List)
 	sites.GET("/:id", siteHandler.GetByID)
 	sites.PUT("/:id", siteHandler.Update)
+	sites.PUT("/:id/live", siteHandler.SetLive)
 	sites.DELETE("/:id", siteHandler.Delete)
 	sites.POST("/:id/locales", localeHandler.Add)
 	sites.DELETE("/:id/locales/:localeCode", localeHandler.Remove)
-
-	mediaBase := ""
-	if cfg.Env == "development" {
-		mediaBase = "http://localhost" + cfg.ServerPort
-	}
 
 	pageHandler := handler.NewPageHandlerWithMedia(queries, pool, mediaBase)
 	sectionHandler := handler.NewSectionHandler(queries)

@@ -9,6 +9,8 @@ import (
 )
 
 type Querier interface {
+	ActivateSiteLive(ctx context.Context, id int64) (Site, error)
+	ClearLiveSites(ctx context.Context) error
 	CountMedia(ctx context.Context) (int64, error)
 	CountSites(ctx context.Context) (int64, error)
 	CreateBlockCounter(ctx context.Context, siteID int64) (BlockCounter, error)
@@ -53,7 +55,6 @@ type Querier interface {
 	ListSiteLocales(ctx context.Context, siteID int64) ([]SiteLocale, error)
 	ListSiteLocalesBySiteIDs(ctx context.Context, dollar_1 []int64) ([]SiteLocale, error)
 	ListSites(ctx context.Context, arg ListSitesParams) ([]Site, error)
-	SetSiteLive(ctx context.Context) error
 	UnsetDefaultLocales(ctx context.Context, siteID int64) error
 	UpdatePage(ctx context.Context, arg UpdatePageParams) (Page, error)
 	UpdatePageLayout(ctx context.Context, arg UpdatePageLayoutParams) (Page, error)

@@ -9,6 +9,35 @@ import (
 	"context"
 )
 
+const activateSiteLive = `-- name: ActivateSiteLive :one
+UPDATE sites SET is_live = true, updated_at = NOW() WHERE id = $1
+RETURNING id, name, domain, options, created_at, updated_at, is_live
+`
+
+func (q *Queries) ActivateSiteLive(ctx context.Context, id int64) (Site, error) {
+	row := q.db.QueryRow(ctx, activateSiteLive, id)
+	var i Site
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Domain,
+		&i.Options,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsLive,
+	)
+	return i, err
+}
+
+const clearLiveSites = `-- name: ClearLiveSites :exec
+UPDATE sites SET is_live = false WHERE is_live = true
+`
+
+func (q *Queries) ClearLiveSites(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, clearLiveSites)
+	return err
+}
+
 const countSites = `-- name: CountSites :one
 SELECT COUNT(*) FROM sites
 `
@@ -154,15 +183,6 @@ func (q *Queries) ListSites(ctx context.Context, arg ListSitesParams) ([]Site, e
 		return nil, err
 	}
 	return items, nil
-}
-
-const setSiteLive = `-- name: SetSiteLive :exec
-UPDATE sites SET is_live = false WHERE is_live = true
-`
-
-func (q *Queries) SetSiteLive(ctx context.Context) error {
-	_, err := q.db.Exec(ctx, setSiteLive)
-	return err
 }
 
 const updateSite = `-- name: UpdateSite :one

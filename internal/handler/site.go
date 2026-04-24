@@ -22,12 +22,13 @@ import (
 )
 
 type SiteHandler struct {
-	queries *db.Queries
-	pool    *pgxpool.Pool
+	queries   *db.Queries
+	pool      *pgxpool.Pool
+	mediaBase string
 }
 
-func NewSiteHandler(queries *db.Queries, pool *pgxpool.Pool) *SiteHandler {
-	return &SiteHandler{queries: queries, pool: pool}
+func NewSiteHandler(queries *db.Queries, pool *pgxpool.Pool, mediaBase string) *SiteHandler {
+	return &SiteHandler{queries: queries, pool: pool, mediaBase: mediaBase}
 }
 
 type CreateSiteLocaleInput struct {
@@ -598,6 +599,73 @@ func (h *SiteHandler) Update(c *echo.Context) error {
 		Domain:  site.Domain,
 		Options: resolvedOptions,
 		Locales: toLocaleResponses(siteLocales),
+	})
+}
+
+func (h *SiteHandler) SetLive(c *echo.Context) error {
+	id, err := parseID(c.Param("id"))
+	if err != nil {
+		return apierror.JSON(c, http.StatusBadRequest, err.Error())
+	}
+
+	ctx := c.Request().Context()
+
+	_, err = h.queries.GetSiteByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return apierror.JSON(c, http.StatusNotFound, "site not found")
+		}
+		return apierror.Internal(c, "failed to get site", err)
+	}
+
+	tx, err := h.pool.Begin(ctx)
+	if err != nil {
+		return apierror.Internal(c, "failed to begin transaction", err)
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := h.queries.WithTx(tx)
+
+	if err := qtx.ClearLiveSites(ctx); err != nil {
+		return apierror.Internal(c, "failed to clear live sites", err)
+	}
+
+	site, err := qtx.ActivateSiteLive(ctx, id)
+	if err != nil {
+		return apierror.Internal(c, "failed to activate site", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return apierror.Internal(c, "failed to commit transaction", err)
+	}
+
+	locales, err := h.queries.ListSiteLocales(ctx, id)
+	if err != nil {
+		return apierror.Internal(c, "failed to get locales", err)
+	}
+
+	pageIDs, err := h.queries.GetAllPublishedPageIDs(ctx, id)
+	if err != nil {
+		return apierror.Internal(c, "failed to get pages", err)
+	}
+
+	regenerated := 0
+	for _, pid := range pageIDs {
+		for _, loc := range locales {
+			_, err := renderPageForLocale(ctx, h.queries, site, pid, loc, h.mediaBase)
+			if err != nil {
+				return apierror.Internal(c, "failed to render page", err)
+			}
+			regenerated++
+		}
+	}
+
+	return c.JSON(http.StatusOK, SiteResponse{
+		ID:      site.ID,
+		Name:    site.Name,
+		Domain:  site.Domain,
+		Options: site.Options,
+		Locales: toLocaleResponses(locales),
 	})
 }
 

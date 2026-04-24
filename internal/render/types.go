@@ -164,9 +164,9 @@ type MenuColors struct {
 }
 
 type MenuItem struct {
-	Locales  map[string]interface{} `json:"locales"`
-	Link     *BlockLink             `json:"link"`
-	Children []MenuItem             `json:"children"`
+	Label    string     `json:"label"`
+	Link     *BlockLink `json:"link"`
+	Children []MenuItem `json:"children"`
 }
 
 type Font struct {

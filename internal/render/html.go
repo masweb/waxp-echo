@@ -140,7 +140,13 @@ func writeBlockHTML(b *strings.Builder, blk *Block, prefix string, opts SiteOpti
 		}
 	}
 
-	fmt.Fprintf(b, "<div class=\"b-inner\">")
+	center := ""
+	switch blk.Type {
+	case "DarkMode", "LanguageSwitcher", "Button":
+		center = " b-center"
+	}
+
+	fmt.Fprintf(b, "<div class=\"b-inner%s\">", center)
 
 	switch blk.Type {
 	case "Text":
@@ -148,7 +154,7 @@ func writeBlockHTML(b *strings.Builder, blk *Block, prefix string, opts SiteOpti
 	case "Image":
 		writeImageBlock(b, blk, data)
 	case "Button":
-		writeButtonBlock(b, blk, opts)
+		writeButtonBlock(b, blk, prefix, opts)
 	case "Space":
 		writeSpaceBlock(b, blk)
 	case "DarkMode":
@@ -156,7 +162,7 @@ func writeBlockHTML(b *strings.Builder, blk *Block, prefix string, opts SiteOpti
 	case "LanguageSwitcher":
 		writeLangBlock(b, blk, data)
 	case "Menu":
-		writeMenuBlock(b, blk, opts)
+		writeMenuBlock(b, blk, prefix, blk.ID, opts)
 	}
 
 	b.WriteString("</div>")
@@ -212,24 +218,36 @@ func writeImageBlock(b *strings.Builder, blk *Block, data PageData) {
 	}
 }
 
-func writeButtonBlock(b *strings.Builder, blk *Block, opts SiteOptions) {
+func writeButtonBlock(b *strings.Builder, blk *Block, prefix string, opts SiteOptions) {
 	if blk.Button == nil {
 		return
 	}
 	btn := blk.Button
 	label := getLocale(blk.Locales, "label")
+	btnSelector := fmt.Sprintf("%s-b%d", prefix, blk.ID)
 
 	var inlineStyle []string
-	inlineStyle = append(inlineStyle, fmt.Sprintf("background-color:%s", btn.Bg.Light))
-	inlineStyle = append(inlineStyle, fmt.Sprintf("color:%s", btn.TextColor.Light))
-	inlineStyle = append(inlineStyle, fmt.Sprintf("width:%s%%", btn.Width))
-	inlineStyle = append(inlineStyle, fmt.Sprintf("padding:%spx %spx %spx %spx",
-		btn.Padding.T, btn.Padding.R, btn.Padding.B, btn.Padding.L,
-	))
+	if btn.Bg.Light != "" {
+		inlineStyle = append(inlineStyle, fmt.Sprintf("background-color:%s", btn.Bg.Light))
+	}
+	if btn.TextColor.Light != "" {
+		inlineStyle = append(inlineStyle, fmt.Sprintf("color:%s", btn.TextColor.Light))
+	}
+	if btn.Width != "" && btn.Width != "0" {
+		inlineStyle = append(inlineStyle, fmt.Sprintf("width:%s%%", btn.Width))
+	}
+	pt, pr, pb, pl := btn.Padding.T, btn.Padding.R, btn.Padding.B, btn.Padding.L
+	if pt != "" || pr != "" || pb != "" || pl != "" {
+		inlineStyle = append(inlineStyle, fmt.Sprintf("padding:%spx %spx %spx %spx",
+			szVal(pt, "0"), szVal(pr, "0"), szVal(pb, "0"), szVal(pl, "0"),
+		))
+	}
 	r := btn.Border.Radius
-	inlineStyle = append(inlineStyle, fmt.Sprintf("border-radius:%s %s %s %s",
-		r.TL, r.TR, r.BR, r.BL,
-	))
+	if r.TL != "" || r.TR != "" || r.BR != "" || r.BL != "" {
+		inlineStyle = append(inlineStyle, fmt.Sprintf("border-radius:%spx %spx %spx %spx",
+			szVal(r.TL, "0"), szVal(r.TR, "0"), szVal(r.BR, "0"), szVal(r.BL, "0"),
+		))
+	}
 
 	if btn.Border.AllBorders.Active {
 		inlineStyle = append(inlineStyle, fmt.Sprintf("border:%spx %s %s",
@@ -245,15 +263,20 @@ func writeButtonBlock(b *strings.Builder, blk *Block, opts SiteOptions) {
 		fmt.Sprintf("--btn-focus-ring:0 0 0 3px %s", btn.Focus.Light),
 	}
 
-	darkVars := []string{
-		fmt.Sprintf("background-color:%s", btn.Bg.Dark),
-		fmt.Sprintf("color:%s", btn.TextColor.Dark),
+	darkVars := []string{}
+	if btn.Bg.Dark != "" {
+		darkVars = append(darkVars, fmt.Sprintf("background-color:%s", btn.Bg.Dark))
+	}
+	if btn.TextColor.Dark != "" {
+		darkVars = append(darkVars, fmt.Sprintf("color:%s", btn.TextColor.Dark))
+	}
+	darkVars = append(darkVars,
 		fmt.Sprintf("--btn-hover-bg:%s", btn.Hover.Dark),
 		fmt.Sprintf("--btn-active-bg:%s", btn.Active.Dark),
 		fmt.Sprintf("--btn-hover-color:%s", btn.HoverTextColor.Dark),
 		fmt.Sprintf("--btn-active-color:%s", btn.ActiveTextColor.Dark),
 		fmt.Sprintf("--btn-focus-ring:0 0 0 3px %s", btn.Focus.Dark),
-	}
+	)
 	if btn.Border.AllBorders.Active {
 		darkVars = append(darkVars, fmt.Sprintf("border:%spx %s %s",
 			btn.Border.AllBorders.Thick, btn.Border.AllBorders.Mode, btn.BorderColor.Dark,
@@ -276,20 +299,32 @@ func writeButtonBlock(b *strings.Builder, blk *Block, opts SiteOptions) {
 		}
 	}
 
-	fmt.Fprintf(b, "<div class=\"btn-block\" style=\"width:100%%;height:100%%;display:flex;align-items:center;justify-content:center;\">")
-	fmt.Fprintf(b, "<%s class=\"btn-b\"%s%s%s style=\"%s;%s\">%s</%s>",
-		tag, href, target, rel,
-		strings.Join(inlineStyle, ";"),
-		strings.Join(cssVars, ";"),
-		html.EscapeString(label),
-		tag,
-	)
+	fmt.Fprintf(b, "<div class=\"btn-block\">")
+	styleStr := strings.Join(inlineStyle, ";")
+	if styleStr != "" {
+		fmt.Fprintf(b, "<%s class=\"btn-b\"%s%s%s style=\"%s;%s\">%s</%s>",
+			tag, href, target, rel,
+			styleStr,
+			strings.Join(cssVars, ";"),
+			html.EscapeString(label),
+			tag,
+		)
+	} else {
+		fmt.Fprintf(b, "<%s class=\"btn-b\"%s%s%s style=\"%s\">%s</%s>",
+			tag, href, target, rel,
+			strings.Join(cssVars, ";"),
+			html.EscapeString(label),
+			tag,
+		)
+	}
 
 	fmt.Fprintf(b, "<style>")
-	fmt.Fprintf(b, ".btn-b:hover{background-color:var(--btn-hover-bg)!important;color:var(--btn-hover-color)!important;}")
-	fmt.Fprintf(b, ".btn-b:active{background-color:var(--btn-active-bg)!important;color:var(--btn-active-color)!important;}")
-	fmt.Fprintf(b, ".btn-b:focus{box-shadow:var(--btn-focus-ring);outline:none;}")
-	fmt.Fprintf(b, ":root[data-theme=\"dark\"] .btn-b{%s}", strings.Join(darkVars, ";"))
+	fmt.Fprintf(b, ".%s .btn-b:hover{background-color:var(--btn-hover-bg)!important;color:var(--btn-hover-color)!important;}", btnSelector)
+	fmt.Fprintf(b, ".%s .btn-b:active{background-color:var(--btn-active-bg)!important;color:var(--btn-active-color)!important;}", btnSelector)
+	fmt.Fprintf(b, ".%s .btn-b:focus{box-shadow:var(--btn-focus-ring);outline:none;}", btnSelector)
+	if len(darkVars) > 0 {
+		fmt.Fprintf(b, ":root[data-theme=\"dark\"] .%s .btn-b{%s}", btnSelector, strings.Join(darkVars, ";"))
+	}
 	b.WriteString("</style>")
 
 	b.WriteString("</div>")
@@ -304,18 +339,9 @@ func writeSpaceBlock(b *strings.Builder, blk *Block) {
 }
 
 func writeDarkModeBlock(b *strings.Builder, blk *Block, opts SiteOptions) {
-	color := opts.LightColor
-	if blk.Color != nil && *blk.Color != "" {
-		color = *blk.Color
-	}
-	darkColor := opts.DarkColor
-	if blk.DarkColor != nil && *blk.DarkColor != "" {
-		darkColor = *blk.DarkColor
-	}
-
-	fmt.Fprintf(b, "<button class=\"dm-toggle\" style=\"color:%s\" onclick=\"waxpToggleTheme()\">", color)
-	b.WriteString(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="dm-icon-light"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.39 5.39 0 0 1-4.4 2.26 5.4 5.4 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>`)
-	fmt.Fprintf(b, "<style>:root[data-theme=\"dark\"] .dm-toggle{color:%s}</style>", darkColor)
+	fmt.Fprintf(b, "<button class=\"dm-toggle\" onclick=\"waxpToggleTheme()\">")
+	b.WriteString(`<svg class="dm-icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.39 5.39 0 0 1-4.4 2.26 5.4 5.4 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>`)
+	b.WriteString(`<svg class="dm-icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 7a5 5 0 1 0 0 10a5 5 0 0 0 0-10zm0-4a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0V4a1 1 0 0 1 1-1zm0 15a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0v-1a1 1 0 0 1 1-1zm8.66-13a1 1 0 0 1 0 1.41l-.71.71a1 1 0 1 1-1.41-1.41l.71-.71a1 1 0 0 1 1.41 0zm-12.73 12.73a1 1 0 0 1 0 1.41l-.71.71a1 1 0 1 1-1.41-1.41l.71-.71a1 1 0 0 1 1.41 0zM20 11a1 1 0 1 1 0 2h-1a1 1 0 1 1 0-2h1zM5 11a1 1 0 1 1 0 2H4a1 1 0 1 1 0-2h1zm14.66 6.34a1 1 0 0 1-1.41 0l-.71-.71a1 1 0 1 1 1.41-1.41l.71.71a1 1 0 0 1 0 1.41zM7.05 5.64a1 1 0 0 1-1.41 0l-.71-.71a1 1 0 1 1 1.41-1.41l.71.71a1 1 0 0 1 0 1.41z"/></svg>`)
 	b.WriteString("</button>")
 }
 
@@ -338,69 +364,78 @@ func writeLangBlock(b *strings.Builder, blk *Block, data PageData) {
 	b.WriteString("</select>")
 }
 
-func writeMenuBlock(b *strings.Builder, blk *Block, opts SiteOptions) {
+func writeMenuBlock(b *strings.Builder, blk *Block, prefix string, blkID int64, opts SiteOptions) {
 	if len(blk.Menu) == 0 {
 		return
 	}
 
 	menuColors := blk.MenuColors
-	if menuColors == nil {
-		menuColors = &MenuColors{}
+	if menuColors == nil || menuColors.Color.Light == "" {
+		menuColors = &MenuColors{
+			Color:  ButtonColors{Light: "#212529", Dark: "#f8f9fa"},
+			Hover:  ButtonColors{Light: "#0d6efd", Dark: "#6ea8fe"},
+			Active: ButtonColors{Light: "#0a58ca", Dark: "#5aa4f0"},
+		}
 	}
 
-	vars := []string{
-		fmt.Sprintf("--m-color:%s", menuColors.Color.Light),
-		fmt.Sprintf("--m-hover:%s", menuColors.Hover.Light),
-		fmt.Sprintf("--m-active:%s", menuColors.Active.Light),
-		"--m-sub-bg:#ffffff",
-	}
-	darkVars := []string{
-		fmt.Sprintf("--m-color:%s", menuColors.Color.Dark),
-		fmt.Sprintf("--m-hover:%s", menuColors.Hover.Dark),
-		fmt.Sprintf("--m-active:%s", menuColors.Active.Dark),
-		"--m-sub-bg:#2b2b2b",
-	}
+	selector := fmt.Sprintf("%s-b%d", prefix, blkID)
+
+	fmt.Fprintf(b, "<style>")
+	fmt.Fprintf(b, ".%s{--m-color:%s;--m-hover:%s;--m-active:%s;--m-sub-bg:#fff;}",
+		selector, menuColors.Color.Light, menuColors.Hover.Light, menuColors.Active.Light,
+	)
+	fmt.Fprintf(b, ".%s .menu-link{color:var(--m-color);}",
+		selector,
+	)
+	fmt.Fprintf(b, ".%s .menu-sublink{color:var(--m-color);}",
+		selector,
+	)
+	fmt.Fprintf(b, ".%s .menu-sub{background:var(--m-sub-bg);}",
+		selector,
+	)
+	fmt.Fprintf(b, ":root[data-theme=\"dark\"] .%s{--m-color:%s;--m-hover:%s;--m-active:%s;--m-sub-bg:#2b2b2b;}",
+		selector, menuColors.Color.Dark, menuColors.Hover.Dark, menuColors.Active.Dark,
+	)
+	fmt.Fprintf(b, "</style>")
 
 	l1Style := fontStyles(blk.MenuFont)
 
-	fmt.Fprintf(b, "<nav class=\"menu-nav\" style=\"%s\">", strings.Join(vars, ";"))
+	fmt.Fprintf(b, "<nav class=\"menu-nav\">")
 	b.WriteString("<ul class=\"menu-list\">")
 
 	for _, item := range blk.Menu {
-		label := getLocale(item.Locales, "label")
 		b.WriteString("<li class=\"menu-item\">")
 
 		if item.Link != nil && item.Link.URL != "" {
 			if item.Link.Type == "external" {
 				fmt.Fprintf(b, "<a class=\"menu-link\" href=\"%s\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"%s\">%s</a>",
-					html.EscapeString(item.Link.URL), l1Style, html.EscapeString(label),
+					html.EscapeString(item.Link.URL), l1Style, html.EscapeString(item.Label),
 				)
 			} else {
 				fmt.Fprintf(b, "<a class=\"menu-link\" href=\"%s\" style=\"%s\">%s</a>",
-					html.EscapeString(item.Link.URL), l1Style, html.EscapeString(label),
+					html.EscapeString(item.Link.URL), l1Style, html.EscapeString(item.Label),
 				)
 			}
 		} else {
-			fmt.Fprintf(b, "<span class=\"menu-link\" style=\"%s\">%s</span>", l1Style, html.EscapeString(label))
+			fmt.Fprintf(b, "<span class=\"menu-link\" style=\"%s\">%s</span>", l1Style, html.EscapeString(item.Label))
 		}
 
 		if len(item.Children) > 0 {
 			subStyle := fontStyles(blk.MenuSubFont)
 			b.WriteString("<ul class=\"menu-sub\">")
 			for _, child := range item.Children {
-				childLabel := getLocale(child.Locales, "label")
 				if child.Link != nil && child.Link.URL != "" {
 					if child.Link.Type == "external" {
 						fmt.Fprintf(b, "<li><a class=\"menu-sublink\" href=\"%s\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"%s\">%s</a></li>",
-							html.EscapeString(child.Link.URL), subStyle, html.EscapeString(childLabel),
+							html.EscapeString(child.Link.URL), subStyle, html.EscapeString(child.Label),
 						)
 					} else {
 						fmt.Fprintf(b, "<li><a class=\"menu-sublink\" href=\"%s\" style=\"%s\">%s</a></li>",
-							html.EscapeString(child.Link.URL), subStyle, html.EscapeString(childLabel),
+							html.EscapeString(child.Link.URL), subStyle, html.EscapeString(child.Label),
 						)
 					}
 				} else {
-					fmt.Fprintf(b, "<li><span class=\"menu-sublink\" style=\"%s\">%s</span></li>", subStyle, html.EscapeString(childLabel))
+					fmt.Fprintf(b, "<li><span class=\"menu-sublink\" style=\"%s\">%s</span></li>", subStyle, html.EscapeString(child.Label))
 				}
 			}
 			b.WriteString("</ul>")
@@ -411,8 +446,6 @@ func writeMenuBlock(b *strings.Builder, blk *Block, opts SiteOptions) {
 
 	b.WriteString("</ul>")
 	b.WriteString("</nav>")
-
-	fmt.Fprintf(b, "<style>:root[data-theme=\"dark\"] .%s .menu-nav{%s}</style>", "current", strings.Join(darkVars, ";"))
 }
 
 func fontStyles(f *Font) string {
@@ -426,6 +459,13 @@ func fontStyles(f *Font) string {
 		parts = append(parts, "font-style:italic")
 	}
 	return strings.Join(parts, ";")
+}
+
+func szVal(s, def string) string {
+	if s == "" {
+		return def
+	}
+	return s
 }
 
 func getLocale(locales map[string]interface{}, key string) string {
