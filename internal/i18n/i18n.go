@@ -5,6 +5,10 @@ import (
 	"fmt"
 )
 
+var localeMapKeys = map[string]bool{
+	"menu": true,
+}
+
 func Resolve(data json.RawMessage, locale string) (json.RawMessage, error) {
 	var v interface{}
 	if err := json.Unmarshal(data, &v); err != nil {
@@ -45,7 +49,7 @@ func Merge(incoming, existing json.RawMessage, locale string) (json.RawMessage, 
 	return out, nil
 }
 
-// --- Resolve: {field: {"es":"...", "en":"..."}} → {field: "..."} ---
+// --- Resolve ---
 
 func resolveValue(v interface{}, locale string) interface{} {
 	switch val := v.(type) {
@@ -56,6 +60,15 @@ func resolveValue(v interface{}, locale string) interface{} {
 				resolved[k] = pickString(entry, locale)
 			}
 			val["locales"] = resolved
+		}
+		for key := range localeMapKeys {
+			if m, ok := val[key].(map[string]interface{}); ok {
+				if data, ok := m[locale]; ok {
+					val[key] = data
+				} else {
+					val[key] = []interface{}{}
+				}
+			}
 		}
 		for k, child := range val {
 			val[k] = resolveValue(child, locale)
@@ -82,13 +95,20 @@ func pickString(entry interface{}, locale string) interface{} {
 	return ""
 }
 
-// --- Wrap: {field: "..."} → {field: {locale: "..."}} ---
+// --- Wrap ---
 
 func wrapValue(v interface{}, locale string) interface{} {
 	switch val := v.(type) {
 	case map[string]interface{}:
 		if loc, ok := val["locales"].(map[string]interface{}); ok {
 			val["locales"] = wrapLocalesMap(loc, locale)
+		}
+		for key := range localeMapKeys {
+			if data, exists := val[key]; exists && data != nil {
+				if _, isMap := data.(map[string]interface{}); !isMap {
+					val[key] = map[string]interface{}{locale: data}
+				}
+			}
 		}
 		for k, child := range val {
 			val[k] = wrapValue(child, locale)
@@ -104,7 +124,7 @@ func wrapValue(v interface{}, locale string) interface{} {
 	}
 }
 
-// --- Merge: camina ambos árboles en paralelo por posición ---
+// --- Merge ---
 
 func mergeSync(incoming, existing interface{}, locale string) interface{} {
 	switch inc := incoming.(type) {
@@ -131,8 +151,20 @@ func mergeSyncMap(inc, exist map[string]interface{}, locale string) map[string]i
 			inc["locales"] = wrapLocalesMap(loc, locale)
 		}
 	}
+	for key := range localeMapKeys {
+		incData, hasInc := inc[key]
+		if !hasInc {
+			continue
+		}
+		if existMap, ok := exist[key].(map[string]interface{}); ok {
+			existMap[locale] = incData
+			inc[key] = existMap
+		} else {
+			inc[key] = map[string]interface{}{locale: incData}
+		}
+	}
 	for k, v := range inc {
-		if k == "locales" {
+		if k == "locales" || localeMapKeys[k] {
 			continue
 		}
 		if existChild, ok := exist[k]; ok {
@@ -154,6 +186,8 @@ func mergeSyncArray(inc []interface{}, exist []interface{}, locale string) []int
 	}
 	return inc
 }
+
+// --- Shared helpers ---
 
 func mergeLocalesMap(incoming, existing map[string]interface{}, locale string) map[string]interface{} {
 	merged := make(map[string]interface{}, len(incoming))

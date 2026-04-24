@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS page_renders;
+ALTER TABLE sites DROP COLUMN IF EXISTS is_live;

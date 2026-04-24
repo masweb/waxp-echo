@@ -61,7 +61,12 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	sites.POST("/:id/locales", localeHandler.Add)
 	sites.DELETE("/:id/locales/:localeCode", localeHandler.Remove)
 
-	pageHandler := handler.NewPageHandler(queries, pool)
+	mediaBase := ""
+	if cfg.Env == "development" {
+		mediaBase = "http://localhost" + cfg.ServerPort
+	}
+
+	pageHandler := handler.NewPageHandlerWithMedia(queries, pool, mediaBase)
 	sectionHandler := handler.NewSectionHandler(queries)
 	mediaHandler := handler.NewMediaHandler(queries, pool, cfg.MediaDir)
 	sites.POST("/:id/pages", pageHandler.Create)
@@ -75,6 +80,9 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	sites.POST("/:id/sections/next-id", sectionHandler.GetNextSectionID)
 	sites.POST("/:id/blocks/next-id", handler.NewBlockHandler(queries).GetNextBlockID)
 
+	publicHandler := handler.NewPublicHandler(queries, pool, mediaBase)
+	sites.POST("/:id/regenerate", publicHandler.RegenerateAllPages)
+
 	media := protected.Group("/media")
 	media.POST("", mediaHandler.Upload)
 	media.GET("", mediaHandler.List)
@@ -82,6 +90,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	media.DELETE("/:id", mediaHandler.Delete)
 
 	e.GET("/media/:name", handler.ServeMedia(cfg.MediaDir))
+	e.GET("/*", publicHandler.ServePage)
 
 	return &Server{
 		Echo:   e,

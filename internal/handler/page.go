@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,12 +22,17 @@ import (
 )
 
 type PageHandler struct {
-	queries *db.Queries
-	pool    *pgxpool.Pool
+	queries   *db.Queries
+	pool      *pgxpool.Pool
+	mediaBase string
 }
 
 func NewPageHandler(queries *db.Queries, pool *pgxpool.Pool) *PageHandler {
-	return &PageHandler{queries: queries, pool: pool}
+	return &PageHandler{queries: queries, pool: pool, mediaBase: ""}
+}
+
+func NewPageHandlerWithMedia(queries *db.Queries, pool *pgxpool.Pool, mediaBase string) *PageHandler {
+	return &PageHandler{queries: queries, pool: pool, mediaBase: mediaBase}
 }
 
 type PageSlugInput struct {
@@ -793,6 +799,10 @@ func (h *PageHandler) Update(c *echo.Context) error {
 		return apierror.Internal(c, "failed to commit transaction", err)
 	}
 
+	if h.mediaBase != "" && page.PublishedAt.Valid {
+		go h.renderAllLocales(siteID, pageID)
+	}
+
 	resp := toPageResponse(page, slugs, seo)
 	resp.Layout, err = i18n.Resolve(resp.Layout, locale)
 	if err != nil {
@@ -801,10 +811,25 @@ func (h *PageHandler) Update(c *echo.Context) error {
 	return c.JSON(http.StatusOK, resp)
 }
 
+func (h *PageHandler) renderAllLocales(siteID, pageID int64) {
+	ctx := context.Background()
+	site, err := h.queries.GetSiteByID(ctx, siteID)
+	if err != nil {
+		return
+	}
+	locales, err := h.queries.ListSiteLocales(ctx, siteID)
+	if err != nil {
+		return
+	}
+	for _, loc := range locales {
+		renderPageForLocale(ctx, h.queries, site, pageID, loc, h.mediaBase)
+	}
+}
+
 type PageRevisionResponse struct {
-	ID            int64  `json:"id"`
+	ID             int64  `json:"id"`
 	RevisionNumber int32 `json:"revision_number"`
-	CreatedAt     string `json:"created_at"`
+	CreatedAt      string `json:"created_at"`
 }
 
 func (h *PageHandler) ListRevisions(c *echo.Context) error {
@@ -856,8 +881,8 @@ func (h *PageHandler) ListRevisions(c *echo.Context) error {
 	}
 
 	builder := filter.NewBuilder(map[string]string{
-		"id":               "id",
-		"revision_number":  "revision_number",
+		"id":              "id",
+		"revision_number": "revision_number",
 	})
 	if err := builder.Parse(c.Request().URL.Query()); err != nil {
 		return apierror.JSON(c, http.StatusBadRequest, err.Error())

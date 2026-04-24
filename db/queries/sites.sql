@@ -1,16 +1,19 @@
 -- name: CreateSite :one
 INSERT INTO sites (name, domain, options)
 VALUES ($1, $2, $3)
-RETURNING id, name, domain, options, created_at, updated_at;
+RETURNING id, name, domain, options, created_at, updated_at, is_live;
 
 -- name: GetSiteByID :one
-SELECT id, name, domain, options, created_at, updated_at FROM sites WHERE id = $1;
+SELECT id, name, domain, options, created_at, updated_at, is_live FROM sites WHERE id = $1;
 
 -- name: GetSiteByDomain :one
-SELECT id, name, domain, options, created_at, updated_at FROM sites WHERE domain = $1;
+SELECT id, name, domain, options, created_at, updated_at, is_live FROM sites WHERE domain = $1;
+
+-- name: GetLiveSite :one
+SELECT id, name, domain, options, created_at, updated_at, is_live FROM sites WHERE is_live = true LIMIT 1;
 
 -- name: ListSites :many
-SELECT id, name, domain, options, created_at, updated_at
+SELECT id, name, domain, options, created_at, updated_at, is_live
 FROM sites
 WHERE ($1::BIGINT IS NULL OR id > $1)
 ORDER BY id ASC
@@ -23,7 +26,11 @@ SELECT COUNT(*) FROM sites;
 UPDATE sites
 SET name = $1, domain = $2, options = $3, updated_at = NOW()
 WHERE id = $4
-RETURNING id, name, domain, options, created_at, updated_at;
+RETURNING id, name, domain, options, created_at, updated_at, is_live;
+
+-- name: SetSiteLive :exec
+UPDATE sites SET is_live = false WHERE is_live = true;
+UPDATE sites SET is_live = true WHERE id = $1;
 
 -- name: DeleteSite :one
 DELETE FROM sites WHERE id = $1 RETURNING id;

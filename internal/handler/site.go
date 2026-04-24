@@ -424,7 +424,7 @@ func (h *SiteHandler) List(c *echo.Context) error {
 		return apierror.Internal(c, "failed to count sites", err)
 	}
 
-	listSQL := "SELECT id, name, domain, options, created_at, updated_at FROM sites" + whereClause + " ORDER BY id ASC"
+	listSQL := "SELECT id, name, domain, options, created_at, updated_at, is_live FROM sites" + whereClause + " ORDER BY id ASC"
 
 	paginated := limit != nil
 	var listArgs []any
@@ -445,7 +445,7 @@ func (h *SiteHandler) List(c *echo.Context) error {
 	var sites []db.Site
 	for rows.Next() {
 		var s db.Site
-		if err := rows.Scan(&s.ID, &s.Name, &s.Domain, &s.Options, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.Domain, &s.Options, &s.CreatedAt, &s.UpdatedAt, &s.IsLive); err != nil {
 			return apierror.Internal(c, "failed to scan site", err)
 		}
 		sites = append(sites, s)
