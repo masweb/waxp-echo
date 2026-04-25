@@ -142,7 +142,7 @@ func writeBlockHTML(b *strings.Builder, blk *Block, prefix string, opts SiteOpti
 
 	center := ""
 	switch blk.Type {
-	case "DarkMode", "LanguageSwitcher", "Button":
+	case "DarkMode", "LanguageSwitcher", "Button", "Icon":
 		center = " b-center"
 	}
 
@@ -158,9 +158,11 @@ func writeBlockHTML(b *strings.Builder, blk *Block, prefix string, opts SiteOpti
 	case "Space":
 		writeSpaceBlock(b, blk)
 	case "DarkMode":
-		writeDarkModeBlock(b, blk, opts)
+		writeDarkModeBlock(b, blk, prefix, opts)
 	case "LanguageSwitcher":
 		writeLangBlock(b, blk, data)
+	case "Icon":
+		writeIconBlock(b, blk, prefix, opts)
 	case "Menu":
 		writeMenuBlock(b, blk, prefix, blk.ID, opts)
 	}
@@ -224,64 +226,7 @@ func writeButtonBlock(b *strings.Builder, blk *Block, prefix string, opts SiteOp
 	}
 	btn := blk.Button
 	label := getLocale(blk.Locales, "label")
-	btnSelector := fmt.Sprintf("%s-b%d", prefix, blk.ID)
-
-	var inlineStyle []string
-	if btn.Bg.Light != "" {
-		inlineStyle = append(inlineStyle, fmt.Sprintf("background-color:%s", btn.Bg.Light))
-	}
-	if btn.TextColor.Light != "" {
-		inlineStyle = append(inlineStyle, fmt.Sprintf("color:%s", btn.TextColor.Light))
-	}
-	if btn.Width != "" && btn.Width != "0" {
-		inlineStyle = append(inlineStyle, fmt.Sprintf("width:%s%%", btn.Width))
-	}
-	pt, pr, pb, pl := btn.Padding.T, btn.Padding.R, btn.Padding.B, btn.Padding.L
-	if pt != "" || pr != "" || pb != "" || pl != "" {
-		inlineStyle = append(inlineStyle, fmt.Sprintf("padding:%spx %spx %spx %spx",
-			szVal(pt, "0"), szVal(pr, "0"), szVal(pb, "0"), szVal(pl, "0"),
-		))
-	}
-	r := btn.Border.Radius
-	if r.TL != "" || r.TR != "" || r.BR != "" || r.BL != "" {
-		inlineStyle = append(inlineStyle, fmt.Sprintf("border-radius:%spx %spx %spx %spx",
-			szVal(r.TL, "0"), szVal(r.TR, "0"), szVal(r.BR, "0"), szVal(r.BL, "0"),
-		))
-	}
-
-	if btn.Border.AllBorders.Active {
-		inlineStyle = append(inlineStyle, fmt.Sprintf("border:%spx %s %s",
-			btn.Border.AllBorders.Thick, btn.Border.AllBorders.Mode, btn.BorderColor.Light,
-		))
-	}
-
-	cssVars := []string{
-		fmt.Sprintf("--btn-hover-bg:%s", btn.Hover.Light),
-		fmt.Sprintf("--btn-active-bg:%s", btn.Active.Light),
-		fmt.Sprintf("--btn-hover-color:%s", btn.HoverTextColor.Light),
-		fmt.Sprintf("--btn-active-color:%s", btn.ActiveTextColor.Light),
-		fmt.Sprintf("--btn-focus-ring:0 0 0 3px %s", btn.Focus.Light),
-	}
-
-	darkVars := []string{}
-	if btn.Bg.Dark != "" {
-		darkVars = append(darkVars, fmt.Sprintf("background-color:%s", btn.Bg.Dark))
-	}
-	if btn.TextColor.Dark != "" {
-		darkVars = append(darkVars, fmt.Sprintf("color:%s", btn.TextColor.Dark))
-	}
-	darkVars = append(darkVars,
-		fmt.Sprintf("--btn-hover-bg:%s", btn.Hover.Dark),
-		fmt.Sprintf("--btn-active-bg:%s", btn.Active.Dark),
-		fmt.Sprintf("--btn-hover-color:%s", btn.HoverTextColor.Dark),
-		fmt.Sprintf("--btn-active-color:%s", btn.ActiveTextColor.Dark),
-		fmt.Sprintf("--btn-focus-ring:0 0 0 3px %s", btn.Focus.Dark),
-	)
-	if btn.Border.AllBorders.Active {
-		darkVars = append(darkVars, fmt.Sprintf("border:%spx %s %s",
-			btn.Border.AllBorders.Thick, btn.Border.AllBorders.Mode, btn.BorderColor.Dark,
-		))
-	}
+	selector := fmt.Sprintf("%s-b%d", prefix, blk.ID)
 
 	tag := "button"
 	href := ""
@@ -299,33 +244,88 @@ func writeButtonBlock(b *strings.Builder, blk *Block, prefix string, opts SiteOp
 		}
 	}
 
-	fmt.Fprintf(b, "<div class=\"btn-block\">")
-	styleStr := strings.Join(inlineStyle, ";")
-	if styleStr != "" {
-		fmt.Fprintf(b, "<%s class=\"btn-b\"%s%s%s style=\"%s;%s\">%s</%s>",
-			tag, href, target, rel,
-			styleStr,
-			strings.Join(cssVars, ";"),
-			html.EscapeString(label),
-			tag,
-		)
-	} else {
-		fmt.Fprintf(b, "<%s class=\"btn-b\"%s%s%s style=\"%s\">%s</%s>",
-			tag, href, target, rel,
-			strings.Join(cssVars, ";"),
-			html.EscapeString(label),
-			tag,
-		)
+	var inlineStyle []string
+	if btn.Width != "" && btn.Width != "0" {
+		inlineStyle = append(inlineStyle, fmt.Sprintf("width:%s%%", btn.Width))
+	}
+	if btn.Padding.T != "" || btn.Padding.R != "" || btn.Padding.B != "" || btn.Padding.L != "" {
+		inlineStyle = append(inlineStyle, fmt.Sprintf("padding:%spx %spx %spx %spx",
+			szVal(btn.Padding.T, "0"), szVal(btn.Padding.R, "0"), szVal(btn.Padding.B, "0"), szVal(btn.Padding.L, "0"),
+		))
+	}
+	r := btn.Border.Radius
+	if r.TL != "" || r.TR != "" || r.BR != "" || r.BL != "" {
+		inlineStyle = append(inlineStyle, fmt.Sprintf("border-radius:%spx %spx %spx %spx",
+			szVal(r.TL, "0"), szVal(r.TR, "0"), szVal(r.BR, "0"), szVal(r.BL, "0"),
+		))
 	}
 
-	fmt.Fprintf(b, "<style>")
-	fmt.Fprintf(b, ".%s .btn-b:hover{background-color:var(--btn-hover-bg)!important;color:var(--btn-hover-color)!important;}", btnSelector)
-	fmt.Fprintf(b, ".%s .btn-b:active{background-color:var(--btn-active-bg)!important;color:var(--btn-active-color)!important;}", btnSelector)
-	fmt.Fprintf(b, ".%s .btn-b:focus{box-shadow:var(--btn-focus-ring);outline:none;}", btnSelector)
-	if len(darkVars) > 0 {
-		fmt.Fprintf(b, ":root[data-theme=\"dark\"] .%s .btn-b{%s}", btnSelector, strings.Join(darkVars, ";"))
+	inlineStyleStr := strings.Join(inlineStyle, ";")
+
+	var lightRules []string
+	if btn.Bg.Light != "" {
+		lightRules = append(lightRules, fmt.Sprintf("background-color:%s", btn.Bg.Light))
 	}
-	b.WriteString("</style>")
+	textColor := btn.TextColor.Light
+	if textColor == "" && blk.Color != nil {
+		textColor = *blk.Color
+	}
+	if textColor != "" {
+		lightRules = append(lightRules, fmt.Sprintf("color:%s", textColor))
+	}
+	if btn.Border.AllBorders.Active {
+		lightRules = append(lightRules, fmt.Sprintf("border:%spx %s %s",
+			btn.Border.AllBorders.Thick, btn.Border.AllBorders.Mode, btn.BorderColor.Light,
+		))
+	}
+	lightRules = append(lightRules,
+		fmt.Sprintf("--btn-hover-bg:%s", btn.Hover.Light),
+		fmt.Sprintf("--btn-active-bg:%s", btn.Active.Light),
+		fmt.Sprintf("--btn-hover-color:%s", btn.HoverTextColor.Light),
+		fmt.Sprintf("--btn-active-color:%s", btn.ActiveTextColor.Light),
+		fmt.Sprintf("--btn-focus-ring:0 0 0 3px %s", btn.Focus.Light),
+	)
+
+	var darkRules []string
+	if btn.Bg.Dark != "" {
+		darkRules = append(darkRules, fmt.Sprintf("background-color:%s", btn.Bg.Dark))
+	}
+	darkTextColor := btn.TextColor.Dark
+	if darkTextColor == "" && blk.DarkColor != nil {
+		darkTextColor = *blk.DarkColor
+	}
+	if darkTextColor != "" {
+		darkRules = append(darkRules, fmt.Sprintf("color:%s", darkTextColor))
+	}
+	if btn.Border.AllBorders.Active {
+		darkRules = append(darkRules, fmt.Sprintf("border:%spx %s %s",
+			btn.Border.AllBorders.Thick, btn.Border.AllBorders.Mode, btn.BorderColor.Dark,
+		))
+	}
+	darkRules = append(darkRules,
+		fmt.Sprintf("--btn-hover-bg:%s", btn.Hover.Dark),
+		fmt.Sprintf("--btn-active-bg:%s", btn.Active.Dark),
+		fmt.Sprintf("--btn-hover-color:%s", btn.HoverTextColor.Dark),
+		fmt.Sprintf("--btn-active-color:%s", btn.ActiveTextColor.Dark),
+		fmt.Sprintf("--btn-focus-ring:0 0 0 3px %s", btn.Focus.Dark),
+	)
+
+	fmt.Fprintf(b, "<div class=\"btn-wrap\">")
+
+	fmt.Fprintf(b, "<%s class=\"btn-b\"%s%s%s", tag, href, target, rel)
+	if inlineStyleStr != "" {
+		fmt.Fprintf(b, " style=\"%s\"", inlineStyleStr)
+	}
+	fmt.Fprintf(b, ">%s</%s>", html.EscapeString(label), tag)
+
+	fmt.Fprintf(b, "<style>")
+	fmt.Fprintf(b, ".%s .btn-b{%s}", selector, strings.Join(lightRules, ";"))
+	fmt.Fprintf(b, ".%s .btn-b:hover{background-color:var(--btn-hover-bg)!important;color:var(--btn-hover-color)!important;}", selector)
+	fmt.Fprintf(b, ".%s .btn-b:active{background-color:var(--btn-active-bg)!important;color:var(--btn-active-color)!important;}", selector)
+	fmt.Fprintf(b, ".%s .btn-b:focus{box-shadow:var(--btn-focus-ring);outline:none;}", selector)
+
+	fmt.Fprintf(b, ":root[data-theme=\"dark\"] .%s .btn-b{%s}", selector, strings.Join(darkRules, ";"))
+	fmt.Fprintf(b, "</style>")
 
 	b.WriteString("</div>")
 }
@@ -338,11 +338,91 @@ func writeSpaceBlock(b *strings.Builder, blk *Block) {
 	}
 }
 
-func writeDarkModeBlock(b *strings.Builder, blk *Block, opts SiteOptions) {
+func writeDarkModeBlock(b *strings.Builder, blk *Block, prefix string, opts SiteOptions) {
+	selector := fmt.Sprintf("%s-b%d", prefix, blk.ID)
+
+	var lightColor string
+	if blk.Color != nil && *blk.Color != "" {
+		lightColor = *blk.Color
+	} else {
+		lightColor = opts.LightColor
+	}
+	var darkColor string
+	if blk.DarkColor != nil && *blk.DarkColor != "" {
+		darkColor = *blk.DarkColor
+	} else {
+		darkColor = opts.DarkColor
+	}
+
+	fmt.Fprintf(b, "<style>")
+	fmt.Fprintf(b, ".%s .dm-toggle{color:%s;}", selector, lightColor)
+	fmt.Fprintf(b, ":root[data-theme=\"dark\"] .%s .dm-toggle{color:%s;}", selector, darkColor)
+	b.WriteString("</style>")
+
 	fmt.Fprintf(b, "<button class=\"dm-toggle\" onclick=\"waxpToggleTheme()\">")
-	b.WriteString(`<svg class="dm-icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.39 5.39 0 0 1-4.4 2.26 5.4 5.4 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>`)
-	b.WriteString(`<svg class="dm-icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 7a5 5 0 1 0 0 10a5 5 0 0 0 0-10zm0-4a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0V4a1 1 0 0 1 1-1zm0 15a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0v-1a1 1 0 0 1 1-1zm8.66-13a1 1 0 0 1 0 1.41l-.71.71a1 1 0 1 1-1.41-1.41l.71-.71a1 1 0 0 1 1.41 0zm-12.73 12.73a1 1 0 0 1 0 1.41l-.71.71a1 1 0 1 1-1.41-1.41l.71-.71a1 1 0 0 1 1.41 0zM20 11a1 1 0 1 1 0 2h-1a1 1 0 1 1 0-2h1zM5 11a1 1 0 1 1 0 2H4a1 1 0 1 1 0-2h1zm14.66 6.34a1 1 0 0 1-1.41 0l-.71-.71a1 1 0 1 1 1.41-1.41l.71.71a1 1 0 0 1 0 1.41zM7.05 5.64a1 1 0 0 1-1.41 0l-.71-.71a1 1 0 1 1 1.41-1.41l.71.71a1 1 0 0 1 0 1.41z"/></svg>`)
+	b.WriteString(`<svg class="dm-icon-moon" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.992a10 10 0 1 0 9.236 13.838c.341 -.82 -.476 -1.644 -1.298 -1.31a6.5 6.5 0 0 1 -6.864 -10.787l.077 -.08c.551 -.63 .113 -1.653 -.758 -1.653h-.266l-.068 -.006l-.06 -.002z"/></svg>`)
+	b.WriteString(`<svg class="dm-icon-sun" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor"><path d="M12 19a1 1 0 0 1 .993 .883l.007 .117v1a1 1 0 0 1 -1.993 .117l-.007 -.117v-1a1 1 0 0 1 1 -1z"/><path d="M18.313 16.91l.094 .083l.7 .7a1 1 0 0 1 -1.32 1.497l-.094 -.083l-.7 -.7a1 1 0 0 1 1.218 -1.567l.102 .07z"/><path d="M7.007 16.993a1 1 0 0 1 .083 1.32l-.083 .094l-.7 .7a1 1 0 0 1 -1.497 -1.32l.083 -.094l-.7 -.7a1 1 0 0 1 1.414 0z"/><path d="M4 11a1 1 0 0 1 .117 1.993l-.117 .007h-1a1 1 0 0 1 -.117 -1.993l.117 -.007h1z"/><path d="M21 11a1 1 0 0 1 .117 1.993l-.117 .007h-1a1 1 0 0 1 -.117 -1.993l.117 -.007h1z"/><path d="M6.213 4.81l.094 .083l.7 .7a1 1 0 0 1 -1.32 1.497l-.094 -.083l-.7 -.7a1 1 0 0 1 1.217 -1.567l.102 .07z"/><path d="M19.107 4.893a1 1 0 0 1 .083 1.32l-.083 .094l-.7 .7a1 1 0 0 1 -1.497 -1.32l.083 -.094l.7 -.7a1 1 0 0 1 1.414 0z"/><path d="M12 2a1 1 0 0 1 .993 .883l.007 .117v1a1 1 0 0 1 -1.993 .117l-.007 -.117v-1a1 1 0 0 1 1 -1z"/><path d="M12 7a5 5 0 1 1 -4.995 5.217l-.005 -.217l.005 -.217a5 5 0 0 1 4.995 -4.783z"/></svg>`)
 	b.WriteString("</button>")
+}
+
+func writeIconBlock(b *strings.Builder, blk *Block, prefix string, opts SiteOptions) {
+	if blk.Icon == nil || blk.Icon.Name == "" {
+		return
+	}
+
+	strokeWidth := blk.Icon.StrokeWidth
+	if strokeWidth <= 0 {
+		strokeWidth = 1
+	}
+
+	svgContent := GetIconSVG(blk.Icon.Name, strokeWidth)
+	if svgContent == "" {
+		return
+	}
+
+	selector := fmt.Sprintf("%s-b%d", prefix, blk.ID)
+
+	var lightColor string
+	if blk.Color != nil && *blk.Color != "" {
+		lightColor = *blk.Color
+	} else {
+		lightColor = opts.LightColor
+	}
+
+	var darkColor string
+	if blk.DarkColor != nil && *blk.DarkColor != "" {
+		darkColor = *blk.DarkColor
+	} else {
+		darkColor = opts.DarkColor
+	}
+
+	href := ""
+	target := ""
+	rel := ""
+	if blk.Link != nil && blk.Link.URL != "" {
+		if blk.Link.Type == "external" {
+			href = fmt.Sprintf(" href=\"%s\"", html.EscapeString(blk.Link.URL))
+			target = " target=\"_blank\""
+			rel = " rel=\"noopener noreferrer\""
+		} else if blk.Link.Type == "internal" {
+			href = fmt.Sprintf(" href=\"%s\"", html.EscapeString(blk.Link.URL))
+		}
+	}
+
+	fmt.Fprintf(b, "<style>")
+	fmt.Fprintf(b, ".%s .icon-wrap{color:%s;}", selector, lightColor)
+	fmt.Fprintf(b, ":root[data-theme=\"dark\"] .%s .icon-wrap{color:%s;}", selector, darkColor)
+	b.WriteString("</style>")
+
+	if href != "" {
+		fmt.Fprintf(b, "<a class=\"b-link icon-wrap\"%s%s%s>", href, target, rel)
+		b.WriteString(svgContent)
+		b.WriteString("</a>")
+	} else {
+		b.WriteString("<div class=\"icon-wrap\">")
+		b.WriteString(svgContent)
+		b.WriteString("</div>")
+	}
 }
 
 func writeLangBlock(b *strings.Builder, blk *Block, data PageData) {

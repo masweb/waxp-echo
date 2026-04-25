@@ -115,6 +115,7 @@ type Block struct {
 	Image             *BlockImage            `json:"image"`
 	Link              *BlockLink             `json:"link"`
 	Button            *BlockButton           `json:"button"`
+	Icon              *BlockIcon             `json:"icon"`
 	Menu              []MenuItem             `json:"menu"`
 	MenuColors        *MenuColors            `json:"menuColors"`
 	MenuFont          *Font                  `json:"menuFont"`
@@ -136,6 +137,11 @@ type BlockImage struct {
 type BlockLink struct {
 	Type string `json:"type"`
 	URL  string `json:"url"`
+}
+
+type BlockIcon struct {
+	Name        string  `json:"name"`
+	StrokeWidth float64 `json:"strokeWidth"`
 }
 
 type BlockButton struct {

@@ -33,6 +33,7 @@ Se ejecuta bajo demanda o vía `RegenerateAllPages`. El flujo es:
 **`css.go`** — Genera todo el CSS:
 - Variables CSS de tema light/dark (`--waxp-text`, `--waxp-bg`, etc.)
 - CSS base para bloques (`.b`, `.b-inner`, `.b-overlay`, etc.)
+- Todos los elementos de formulario/interactivos (`button`, `select`) usan `font:inherit` para heredar font-size/family fluidos
 - CSS de tipografía por heading (H1-H6) desde `options.headers`
 - Por cada sección: grid CSS, backgrounds, borders, padding
 - Por cada bloque: posición en grid (`grid-column`/`grid-row`), font-size fluido (desktop/tablet/mobile con `clamp`)
@@ -72,15 +73,16 @@ Tipos de bloque renderizados (`writeBlockHTML` → switch por tipo):
 |---|---|---|
 | `Text` | `writeTextBlock` | `<div class="b-tiptap">{HTML de locales.text}</div>` |
 | `Image` | `writeImageBlock` | `<img>` con src responsive (desk/tab/mob), fit, link wrapper, alt desde `locales.alt` |
-| `Button` | `writeButtonBlock` | `<button>` o `<a>` con colores light/dark, hover/active/focus CSS vars, border radius |
+| `Button` | `writeButtonBlock` | `<button>` o `<a>` con `font:inherit` para tamaño fluido. Colores (bg, text, border, hover, active, focus) 100% en `<style>` con selectores light/dark — nada inline. Soporta `blk.Color`/`blk.DarkColor` como fallback de color de texto |
+| `Icon` | `writeIconBlock` | SVG inline desde `icons.json` (6092 iconos Tabler embebidos via `go:embed`). Soporta `block.icon.name`, `strokeWidth`, color light/dark (`blk.Color`/`blk.DarkColor`), enlaces (`<a>` wrapper). Tamaño fluido vía `1em` heredado del font-size de la sección |
 | `Space` | `writeSpaceBlock` | Divider horizontal opcional |
-| `DarkMode` | `writeDarkModeBlock` | Botón toggle con iconos SVG luna/sol |
-| `LanguageSwitcher` | `writeLangBlock` | `<select>` con opciones por locale, URLs calculadas con `buildRoutePath` |
+| `DarkMode` | `writeDarkModeBlock` | Botón toggle con `font:inherit`, SVGs escalados con `1.5em` (hereda font-size fluido), `user-select:none` |
+| `LanguageSwitcher` | `writeLangBlock` | `<select>` con `font:inherit` y `appearance:none` (sin caret nativo). Hereda tamaño fluido |
 | `Menu` | `writeMenuBlock` | `<nav><ul>` con colores CSS vars, submenús hover, font custom por nivel |
 
 ### 4. Estrategia de caché
 
 El HTML se **pre-renderiza y almacena** en `page_renders` (una fila por `page_id` + `locale_id`). El servicio público lee directamente de ahí — no renderiza en cada petición. Se regenera cuando:
 
-- Se llama a `RegenerateAllPages` (endpoint manual)
-- *(Aquí es donde habría que enganchar la regeneración automática al guardar página/site)
+- Se llama a `RegenerateAllPages` (endpoint manual `POST /api/sites/:id/regenerate`)
+- Se marca un site como live (`PUT /api/sites/:id/live`) — regenera automáticamente todas las páginas del site
