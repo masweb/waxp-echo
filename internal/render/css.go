@@ -23,7 +23,11 @@ func buildCSS(sections []sectionRender, opts SiteOptions) string {
 		opts.DarkColor, opts.DarkBackColor,
 	)
 
-	fmt.Fprintf(&b, ".waxp{color:var(--waxp-text);background:var(--waxp-bg);font-family:var(--waxp-ff);font-weight:var(--waxp-fw);min-height:100vh;display:flex;flex-direction:column;}")
+	fmt.Fprintf(&b, ".waxp{color:var(--waxp-text);background:var(--waxp-bg);font-family:var(--waxp-ff);font-weight:var(--waxp-fw);min-height:100vh;display:flex;flex-direction:column;")
+	if opts.DesktopMargin > 0 {
+		fmt.Fprintf(&b, "padding:0 %gpx;", opts.DesktopMargin)
+	}
+	b.WriteString("}")
 
 	writeBaseBlockCSS(&b)
 
@@ -33,6 +37,22 @@ func buildCSS(sections []sectionRender, opts SiteOptions) string {
 
 	for _, sec := range sections {
 		writeSectionCSS(&b, sec, opts)
+	}
+
+	mobileBP := opts.MobileBP
+	if mobileBP == 0 {
+		mobileBP = 767
+	}
+	tabletBP := opts.TabletBP
+	if tabletBP == 0 {
+		tabletBP = 1024
+	}
+
+	if opts.TabletMargin > 0 {
+		fmt.Fprintf(&b, "@media(max-width:%dpx){.waxp{padding:0 %gpx;}}", tabletBP, opts.TabletMargin)
+	}
+	if opts.MobileMargin > 0 {
+		fmt.Fprintf(&b, "@media(max-width:%dpx){.waxp{padding:0 %gpx;}}", mobileBP, opts.MobileMargin)
 	}
 
 	return b.String()
@@ -65,7 +85,7 @@ func writeBaseBlockCSS(b *strings.Builder) {
 	b.WriteString(":root[data-theme=\"dark\"] .dm-icon-moon{display:none;}")
 	b.WriteString(":root[data-theme=\"dark\"] .dm-icon-sun{display:inline-block;}")
 	b.WriteString(".icon-wrap{display:flex;align-items:center;justify-content:center;width:100%;height:100%;position:relative;z-index:1;line-height:1;}")
-	b.WriteString(".lang-select{font:inherit;appearance:none;-webkit-appearance:none;width:100%;height:100%;border:none;background:transparent;padding:0 .5rem;outline:none;box-shadow:none;cursor:pointer;text-align:center;text-align-last:center;color:var(--waxp-text);}")
+	b.WriteString(".lang-select{font:inherit;appearance:none;-webkit-appearance:none;width:100%;height:100%;border:none;background:transparent;padding:0 .1rem;outline:none;box-shadow:none;cursor:pointer;text-align:center;text-align-last:center;color:var(--waxp-text);}")
 	b.WriteString(":root[data-theme=\"dark\"] .lang-select{color:var(--waxp-text);}")
 	b.WriteString(".menu-nav{width:100%;height:100%;display:flex;align-items:center;position:relative;z-index:1;}")
 	b.WriteString(".menu-list{display:flex;align-items:center;gap:1.5rem;list-style:none;margin:0;padding:0;width:100%;}")
@@ -311,9 +331,19 @@ func writeFluidFontCSS(b *strings.Builder, selector string, fontSize, lineHeight
 	slope := fixedPx * textZoom * 100 / float64(targetWidth)
 
 	fmt.Fprintf(b, "@media(min-width:%dpx){.%s{font-size:%gpx;line-height:%gpx;}}", targetWidth, selector, fixedPx, fixedPx*lineHeight)
-	fmt.Fprintf(b, "@media(max-width:%dpx){.%s{font-size:calc(%gpx + %gvw);line-height:calc(%gpx + %gvw);}}",
-		targetWidth-1, selector, a, slope, a*lineHeight, slope*lineHeight,
-	)
+
+	margin := opts.DesktopMargin
+	if margin > 0 {
+		fsCorr := slope * 2 * margin / 100
+		lhCorr := fsCorr * lineHeight
+		fmt.Fprintf(b, "@media(max-width:%dpx){.%s{font-size:calc(%gpx + %gvw - %gpx);line-height:calc(%gpx + %gvw - %gpx);}}",
+			targetWidth-1, selector, a, slope, fsCorr, a*lineHeight, slope*lineHeight, lhCorr,
+		)
+	} else {
+		fmt.Fprintf(b, "@media(max-width:%dpx){.%s{font-size:calc(%gpx + %gvw);line-height:calc(%gpx + %gvw);}}",
+			targetWidth-1, selector, a, slope, a*lineHeight, slope*lineHeight,
+		)
+	}
 }
 
 func writeFluidFontTabletCSS(b *strings.Builder, selector string, fontSize, lineHeight float64, targetWidth int, fullWidth bool, opts SiteOptions) {
@@ -323,7 +353,14 @@ func writeFluidFontTabletCSS(b *strings.Builder, selector string, fontSize, line
 	}
 	fsVW := fontSize + zoom
 	lhVW := fsVW * lineHeight
-	fmt.Fprintf(b, ".%s{font-size:%gvw;line-height:%gvw;}", selector, fsVW, lhVW)
+	margin := opts.TabletMargin
+	if margin <= 0 {
+		fmt.Fprintf(b, ".%s{font-size:%gvw;line-height:%gvw;}", selector, fsVW, lhVW)
+		return
+	}
+	fsCorr := fsVW * 2 * margin / 100
+	lhCorr := lhVW * 2 * margin / 100
+	fmt.Fprintf(b, ".%s{font-size:calc(%gvw - %gpx);line-height:calc(%gvw - %gpx);}", selector, fsVW, fsCorr, lhVW, lhCorr)
 }
 
 func writeFluidFontMobileCSS(b *strings.Builder, selector string, fontSize, lineHeight float64, targetWidth int, fullWidth bool, opts SiteOptions) {
@@ -333,7 +370,14 @@ func writeFluidFontMobileCSS(b *strings.Builder, selector string, fontSize, line
 	}
 	fsVW := fontSize + zoom
 	lhVW := fsVW * lineHeight
-	fmt.Fprintf(b, ".%s{font-size:%gvw;line-height:%gvw;}", selector, fsVW, lhVW)
+	margin := opts.MobileMargin
+	if margin <= 0 {
+		fmt.Fprintf(b, ".%s{font-size:%gvw;line-height:%gvw;}", selector, fsVW, lhVW)
+		return
+	}
+	fsCorr := fsVW * 2 * margin / 100
+	lhCorr := lhVW * 2 * margin / 100
+	fmt.Fprintf(b, ".%s{font-size:calc(%gvw - %gpx);line-height:calc(%gvw - %gpx);}", selector, fsVW, fsCorr, lhVW, lhCorr)
 }
 
 func writeBackgroundCSS(b *strings.Builder, bg Background, theme string) {

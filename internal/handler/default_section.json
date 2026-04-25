@@ -1,8 +1,8 @@
 {
   "blocks": [],
-  "mobile": { "cols": 8, "rows": 12, "gap": 8 },
+  "mobile": { "cols": 8, "rows": 12, "gap": 6 },
   "tablet": { "cols": 20, "rows": 12, "gap": 8 },
-  "desktop": { "cols": 24, "rows": 12, "gap": 12 },
+  "desktop": { "cols": 24, "rows": 12, "gap": 10 },
   "style": {
     "maxWidth": null,
     "fullWidth": false,
@@ -56,9 +56,9 @@
       "l": "0"
     },
     "margin": {
-      "t": "6px",
+      "t": "5px",
       "r": "0",
-      "b": "6px",
+      "b": "5px",
       "l": "0"
     }
   }

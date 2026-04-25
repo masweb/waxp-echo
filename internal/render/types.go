@@ -193,9 +193,12 @@ type SiteOptions struct {
 	DarkMode        bool              `json:"darkMode"`
 	MobileBP        int               `json:"mobileBP"`
 	MobileTextZoom  float64           `json:"mobileTextZoom"`
+	MobileMargin    float64           `json:"mobileMargin"`
 	TabletBP        int               `json:"tabletBP"`
 	TabletTextZoom  float64           `json:"tabletTextZoom"`
+	TabletMargin    float64           `json:"tabletMargin"`
 	DesktopTextZoom float64           `json:"desktopTextZoom"`
+	DesktopMargin   float64           `json:"desktopMargin"`
 	DesktopWidth    int               `json:"desktopWidth"`
 	Headers         json.RawMessage   `json:"headers"`
 	Header          *Section          `json:"header"`
