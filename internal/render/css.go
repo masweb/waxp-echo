@@ -12,15 +12,26 @@ func buildCSS(sections []sectionRender, opts SiteOptions) string {
 
 	b.WriteString("*{margin:0;padding:0;box-sizing:border-box;}")
 	b.WriteString("html{scroll-behavior:smooth;}")
+	b.WriteString("body{font-family:var(--waxp-ff);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;}")
+	b.WriteString("::-webkit-scrollbar{width:4px;height:4px;}")
 
-	fmt.Fprintf(&b, ":root{--waxp-text:%s;--waxp-bg:%s;--waxp-ff:'%s',sans-serif;--waxp-fw:%d;--waxp-fs:%grem;--waxp-lh:%gem;--waxp-dw:%dpx;}",
-		opts.LightColor, opts.LightBackColor,
+	lightAccent := opts.LightAccentColor
+	if lightAccent == "" {
+		lightAccent = opts.LightColor
+	}
+	darkAccent := opts.DarkAccentColor
+	if darkAccent == "" {
+		darkAccent = opts.DarkColor
+	}
+
+	fmt.Fprintf(&b, ":root{--waxp-text:%s;--waxp-bg:%s;--waxp-accent:%s;--waxp-ff:'%s',sans-serif;--waxp-fw:%d;--waxp-fs:%grem;--waxp-lh:%gem;--waxp-dw:%dpx;}",
+		opts.LightColor, opts.LightBackColor, lightAccent,
 		opts.GlobalFontFamily.Family, opts.GlobalFontFamily.Weight,
 		opts.FontSize, opts.LineHeight, opts.DesktopWidth,
 	)
 
-	fmt.Fprintf(&b, ":root[data-theme=\"dark\"]{--waxp-text:%s;--waxp-bg:%s;}",
-		opts.DarkColor, opts.DarkBackColor,
+	fmt.Fprintf(&b, ":root[data-theme=\"dark\"]{--waxp-text:%s;--waxp-bg:%s;--waxp-accent:%s;}",
+		opts.DarkColor, opts.DarkBackColor, darkAccent,
 	)
 
 	fmt.Fprintf(&b, ".waxp{color:var(--waxp-text);background:var(--waxp-bg);font-family:var(--waxp-ff);font-weight:var(--waxp-fw);min-height:100vh;display:flex;flex-direction:column;")
@@ -54,6 +65,7 @@ func buildCSS(sections []sectionRender, opts SiteOptions) string {
 	if opts.MobileMargin > 0 {
 		fmt.Fprintf(&b, "@media(max-width:%dpx){.waxp{padding:0 %gpx;}}", mobileBP, opts.MobileMargin)
 	}
+	fmt.Fprintf(&b, "@media(max-width:%dpx){.lang-select{font-size:16px!important;width:auto!important;min-width:80px;height:auto!important;appearance:auto!important;-webkit-appearance:auto!important;padding:4px 8px!important;text-align:left!important;text-align-last:auto!important;}}", mobileBP)
 
 	return b.String()
 }
@@ -73,7 +85,7 @@ func writeBaseBlockCSS(b *strings.Builder) {
 	b.WriteString(".b-tiptap>*+*{margin-top:.65em;}")
 	b.WriteString(".b-tiptap :last-child{margin-bottom:0;}")
 	b.WriteString(".b-tiptap img{max-width:100%;height:auto;}")
-	b.WriteString(".b-tiptap a{color:inherit;text-decoration:underline;}")
+	b.WriteString(".b-tiptap a{color:var(--waxp-accent);text-decoration:underline;}")
 	b.WriteString(".b-tiptap ul,.b-tiptap ol{margin-left:1.5em;}")
 	b.WriteString(".b-tiptap blockquote{padding-left:1em;border-left:3px solid currentColor;opacity:.7;}")
 

@@ -182,10 +182,12 @@ type Font struct {
 }
 
 type SiteOptions struct {
-	DarkColor       string            `json:"darkColor"`
-	LightColor      string            `json:"lightColor"`
-	DarkBackColor   string            `json:"darkBackColor"`
-	LightBackColor  string            `json:"lightBackColor"`
+	DarkColor        string            `json:"darkColor"`
+	LightColor       string            `json:"lightColor"`
+	DarkBackColor    string            `json:"darkBackColor"`
+	LightBackColor   string            `json:"lightBackColor"`
+	DarkAccentColor  string            `json:"darkAccentColor"`
+	LightAccentColor string            `json:"lightAccentColor"`
 	Fonts           []SiteFont        `json:"fonts"`
 	GlobalFontFamily Font             `json:"globalFontFamily"`
 	FontSize        float64           `json:"fontSize"`
