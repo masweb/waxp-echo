@@ -30,7 +30,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 
 	if cfg.Env == "development" {
 		e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-			AllowOrigins:     []string{"http://localhost:5173"},
+			AllowOrigins:     []string{"http://localhost:5173", "http://localhost:5174"},
 			AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
 			AllowCredentials: true,
 		}))

@@ -111,6 +111,9 @@ func writeBaseBlockCSS(b *strings.Builder) {
 	b.WriteString(".space-divider{position:absolute;top:50%;left:0;right:0;transform:translateY(-50%);pointer-events:none;}")
 	b.WriteString(".img-block{display:flex;align-items:center;justify-content:center;}")
 	b.WriteString(".img-block img{display:block;}")
+	b.WriteString(".img-dark{display:none;}")
+	b.WriteString(":root[data-theme=\"dark\"] .img-light{display:none;}")
+	b.WriteString(":root[data-theme=\"dark\"] .img-dark{display:block;}")
 }
 
 func writeHeaderCSS(b *strings.Builder, headers json.RawMessage) {
@@ -154,9 +157,13 @@ func writeSectionCSS(b *strings.Builder, sr sectionRender, opts SiteOptions) {
 	writeBackgroundCSS(b, s.Style.SectionBackground, "light")
 	writeSidesCSS(b, "margin", s.Style.Margin)
 	if sr.isFixed {
-		b.WriteString("position:sticky;top:0;z-index:100;")
+		b.WriteString("position:sticky;top:0;z-index:100;transition:background-color .2s,backdrop-filter .2s;")
 	}
 	b.WriteString("}")
+	if sr.isFixed {
+		fmt.Fprintf(b, ".%s-row.sr-scrolled{background-color:%scc;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);}", p, opts.LightBackColor)
+		fmt.Fprintf(b, ":root[data-theme=\"dark\"] .%s-row.sr-scrolled{background-color:%scc;}", p, opts.DarkBackColor)
+	}
 	fmt.Fprintf(b, ":root[data-theme=\"dark\"] .%s-row{", p)
 	writeBackgroundCSS(b, s.Style.SectionBackground, "dark")
 	if sr.isFixed {
@@ -256,6 +263,7 @@ func writeBlockCSS(b *strings.Builder, blk Block, prefix string, opts SiteOption
 	writeBackgroundCSS(b, blk.Style.Background, "light")
 	writeBorderCSS(b, blk.Style.Border)
 	writeSidesCSS(b, "padding", blk.Style.Padding)
+	writeSidesCSS(b, "margin", blk.Style.Margin)
 	if bgNeedsClip(blk.Style.Background) {
 		b.WriteString("overflow:hidden;")
 	}
@@ -429,6 +437,9 @@ func writeOverlayCSS(bg Background, theme string, mediaBase string) string {
 		return ""
 	}
 	url := bg.URLDesk
+	if theme == "dark" && bg.URLDeskDark != "" {
+		url = bg.URLDeskDark
+	}
 	if url == "" {
 		return ""
 	}

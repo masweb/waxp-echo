@@ -41,6 +41,7 @@ type BlockStyle struct {
 	Background Background `json:"background"`
 	Border     Border     `json:"border"`
 	Padding    Sides      `json:"padding"`
+	Margin     Sides      `json:"margin"`
 }
 
 type Background struct {
@@ -50,6 +51,9 @@ type Background struct {
 	URLDesk    string `json:"url_desk"`
 	URLTab     string `json:"url_tab"`
 	URLMob     string `json:"url_mob"`
+	URLDeskDark string `json:"url_desk_dark"`
+	URLTabDark  string `json:"url_tab_dark"`
+	URLMobDark  string `json:"url_mob_dark"`
 	Opacity    string `json:"opacity"`
 	FixImgBack bool   `json:"fix_img_back"`
 	Pos        string `json:"pos"`
@@ -128,10 +132,13 @@ type Block struct {
 }
 
 type BlockImage struct {
-	URLDesk string `json:"url_desk"`
-	URLTab  string `json:"url_tab"`
-	URLMob  string `json:"url_mob"`
-	Fit     string `json:"fit"`
+	URLDesk     string `json:"url_desk"`
+	URLTab      string `json:"url_tab"`
+	URLMob      string `json:"url_mob"`
+	URLDeskDark string `json:"url_desk_dark"`
+	URLTabDark  string `json:"url_tab_dark"`
+	URLMobDark  string `json:"url_mob_dark"`
+	Fit         string `json:"fit"`
 }
 
 type BlockLink struct {

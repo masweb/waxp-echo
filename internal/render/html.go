@@ -90,6 +90,17 @@ func buildHTML(sections []sectionRender, opts SiteOptions, data PageData) string
 		b.WriteString(`<script>function waxpToggleTheme(){var d=document.documentElement;var c=d.getAttribute('data-theme')==='dark'?'light':'dark';d.setAttribute('data-theme',c);localStorage.setItem('waxp-theme',c);}</script>`)
 	}
 
+	hasSticky := false
+	for _, sr := range sections {
+		if sr.isFixed {
+			hasSticky = true
+			break
+		}
+	}
+	if hasSticky {
+		b.WriteString(`<script>(function(){var s=document.querySelectorAll('.sr');window.addEventListener('scroll',function(){s.forEach(function(e){e.classList.toggle('sr-scrolled',window.scrollY>0)})})})();</script>`)
+	}
+
 	b.WriteString("</body></html>")
 	return b.String()
 }
@@ -181,8 +192,8 @@ func writeImageBlock(b *strings.Builder, blk *Block, data PageData) {
 		return
 	}
 	img := blk.Image
-	url := img.URLDesk
-	if url == "" {
+	urlLight := img.URLDesk
+	if urlLight == "" {
 		return
 	}
 
@@ -209,12 +220,25 @@ func writeImageBlock(b *strings.Builder, blk *Block, data PageData) {
 		}
 	}
 
+	urlDark := img.URLDeskDark
+
 	if href != "" {
 		fmt.Fprintf(b, "<a class=\"b-link\" href=\"%s\"%s%s>", html.EscapeString(href), target, rel)
 	}
-	fmt.Fprintf(b, "<img src=\"%s%s\" alt=\"%s\" style=\"%s\" loading=\"lazy\">",
-		data.MediaBase, url, html.EscapeString(alt), style,
-	)
+
+	if urlDark != "" {
+		fmt.Fprintf(b, "<img src=\"%s%s\" alt=\"%s\" style=\"%s\" loading=\"lazy\" class=\"img-light\">",
+			data.MediaBase, urlLight, html.EscapeString(alt), style,
+		)
+		fmt.Fprintf(b, "<img src=\"%s%s\" alt=\"%s\" style=\"%s\" loading=\"lazy\" class=\"img-dark\">",
+			data.MediaBase, urlDark, html.EscapeString(alt), style,
+		)
+	} else {
+		fmt.Fprintf(b, "<img src=\"%s%s\" alt=\"%s\" style=\"%s\" loading=\"lazy\">",
+			data.MediaBase, urlLight, html.EscapeString(alt), style,
+		)
+	}
+
 	if href != "" {
 		b.WriteString("</a>")
 	}
