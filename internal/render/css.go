@@ -224,6 +224,7 @@ func writeSectionCSS(b *strings.Builder, sr sectionRender, opts SiteOptions) {
 	writeFluidFontTabletCSS(b, p, opts.FontSize, opts.LineHeight, maxW, s.Style.FullWidth, opts)
 	for _, blk := range s.Blocks {
 		writeBlockFontCSS(b, blk, p, "t", opts, maxW, s.Style.FullWidth)
+		writeMenuBlockFontCSS(b, blk, p, "t", opts, maxW, s.Style.FullWidth)
 	}
 	b.WriteString("}")
 
@@ -239,6 +240,7 @@ func writeSectionCSS(b *strings.Builder, sr sectionRender, opts SiteOptions) {
 	writeFluidFontMobileCSS(b, p, opts.FontSize, opts.LineHeight, maxW, s.Style.FullWidth, opts)
 	for _, blk := range s.Blocks {
 		writeBlockFontCSS(b, blk, p, "m", opts, maxW, s.Style.FullWidth)
+		writeMenuBlockFontCSS(b, blk, p, "m", opts, maxW, s.Style.FullWidth)
 	}
 	b.WriteString("}")
 
@@ -277,6 +279,8 @@ func writeBlockCSS(b *strings.Builder, blk Block, prefix string, opts SiteOption
 	b.WriteString("}")
 
 	writeBlockFontCSS(b, blk, prefix, "d", opts, targetWidth, fullWidth)
+	writeBlockColorCSS(b, blk, prefix)
+	writeMenuBlockFontCSS(b, blk, prefix, "d", opts, targetWidth, fullWidth)
 
 	for _, hideOn := range blk.Style.HideOn {
 		mobileBP := opts.MobileBP
@@ -319,15 +323,63 @@ func writeBlockFontCSS(b *strings.Builder, blk Block, prefix string, bp string, 
 	case "m":
 		writeFluidFontMobileCSS(b, fmt.Sprintf("%s-b%d", prefix, blk.ID), fs, lh, targetWidth, fullWidth, opts)
 	}
+}
 
-	if blk.Color != nil || blk.DarkColor != nil {
-		fmt.Fprintf(b, ".%s-b%d .b-inner{", prefix, blk.ID)
-		if blk.Color != nil && *blk.Color != "" {
-			fmt.Fprintf(b, "color:%s;", *blk.Color)
+func writeBlockColorCSS(b *strings.Builder, blk Block, prefix string) {
+	if blk.Color == nil && blk.DarkColor == nil {
+		return
+	}
+	if blk.Color != nil && *blk.Color != "" {
+		fmt.Fprintf(b, ".%s-b%d .b-inner{color:%s;}", prefix, blk.ID, *blk.Color)
+	}
+	if blk.DarkColor != nil && *blk.DarkColor != "" {
+		fmt.Fprintf(b, ":root[data-theme=\"dark\"] .%s-b%d .b-inner{color:%s;}", prefix, blk.ID, *blk.DarkColor)
+	}
+}
+
+func writeMenuBlockFontCSS(b *strings.Builder, blk Block, prefix string, bp string, opts SiteOptions, targetWidth int, fullWidth bool) {
+	if blk.Type != "Menu" {
+		return
+	}
+	blockSel := fmt.Sprintf("%s-b%d", prefix, blk.ID)
+
+	if blk.MenuFontSize != nil || blk.MenuLineHeight != nil {
+		fs := opts.FontSize
+		lh := opts.LineHeight
+		if blk.MenuFontSize != nil {
+			fs = *blk.MenuFontSize
 		}
-		b.WriteString("}")
-		if blk.DarkColor != nil && *blk.DarkColor != "" {
-			fmt.Fprintf(b, ":root[data-theme=\"dark\"] .%s-b%d .b-inner{color:%s;}", prefix, blk.ID, *blk.DarkColor)
+		if blk.MenuLineHeight != nil {
+			lh = *blk.MenuLineHeight
+		}
+		linkSel := blockSel + " .menu-link"
+		switch bp {
+		case "d":
+			writeFluidFontCSS(b, linkSel, fs, lh, targetWidth, fullWidth, opts)
+		case "t":
+			writeFluidFontTabletCSS(b, linkSel, fs, lh, targetWidth, fullWidth, opts)
+		case "m":
+			writeFluidFontMobileCSS(b, linkSel, fs, lh, targetWidth, fullWidth, opts)
+		}
+	}
+
+	if blk.MenuSubFontSize != nil || blk.MenuSubLineHeight != nil {
+		fs := opts.FontSize
+		lh := opts.LineHeight
+		if blk.MenuSubFontSize != nil {
+			fs = *blk.MenuSubFontSize
+		}
+		if blk.MenuSubLineHeight != nil {
+			lh = *blk.MenuSubLineHeight
+		}
+		subSel := blockSel + " .menu-sublink"
+		switch bp {
+		case "d":
+			writeFluidFontCSS(b, subSel, fs, lh, targetWidth, fullWidth, opts)
+		case "t":
+			writeFluidFontTabletCSS(b, subSel, fs, lh, targetWidth, fullWidth, opts)
+		case "m":
+			writeFluidFontMobileCSS(b, subSel, fs, lh, targetWidth, fullWidth, opts)
 		}
 	}
 }
