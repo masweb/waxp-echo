@@ -139,6 +139,7 @@ Estructuras Go tipadas que mapean el JSON resuelto:
 - **`Block`** — bloque con tipo, coordenadas por breakpoint, estilo, y campos específicos por tipo
 - **`SiteOptions`** — configuración global (ver sección dedicada)
 - **`BlockIcon`** — `{name, strokeWidth}` para el bloque Icon
+- **`BlockImage`** — `{url_desk, url_tab, url_mob, url_desk_dark, url_tab_dark, url_mob_dark, fit, lightbox?}` para el bloque Image
 
 ### SiteOptions
 
@@ -374,6 +375,8 @@ El contenido de `locales.text` es HTML raw generado por TipTap. Los enlaces usan
 
 ### Image (`writeImageBlock`)
 
+**Sin lightbox:**
+
 ```html
 <a class="b-link" href="{link.url}" target="_blank" rel="noopener noreferrer">
   <img src="{mediaBase}{image.url_desk}" alt="{locales.alt}" 
@@ -384,6 +387,69 @@ El contenido de `locales.text` es HTML raw generado por TipTap. Los enlaces usan
 - Soporta 3 fuentes: `url_desk`, `url_tab`, `url_mob` (actualmente usa `url_desk`)
 - `fit`: `cover`, `height`, o default (`width:100%`)
 - Link wrapper si `block.link` existe (internal o external)
+
+**Con lightbox** (`image.lightbox === true`):
+
+Dentro del bloque (en `b-inner`):
+
+```html
+<label for="lb-{block.id}" class="lb-trigger">
+  <img src="{mediaBase}{image.url_desk}" alt="{locales.alt}"
+       style="width:100%;height:auto;" loading="lazy">
+</label>
+```
+
+Al final de `.waxp` (fuera de todas las secciones, para evitar problemas de stacking context):
+
+```html
+<input type="checkbox" id="lb-{block.id}" class="lb-chk" hidden>
+<label for="lb-{block.id}" class="lb-ov">
+  <img src="{mediaBase}{image.url_desk}" alt="{locales.alt}" style="max-width:90vw;max-height:90vh;object-fit:contain;border-radius:4px">
+  <span class="lb-x">&times;</span>
+</label>
+```
+
+El `<input>` y el `<label class="lb-ov">` **deben ser hermanos directos** dentro de `.waxp` (después de todas las secciones) para que el selector CSS `:checked ~` funcione. Se agrupan todos los pares lightbox al final.
+
+CSS a incluir en el CSS base (una sola vez, no por bloque):
+
+```css
+.lb-chk { display: none }
+.lb-trigger { cursor: zoom-in }
+.lb-ov {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.85);
+  cursor: zoom-out;
+}
+:root[data-theme="dark"] .lb-ov { background: rgba(0, 0, 0, 0.92) }
+.lb-x {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  font-size: 32px;
+  color: #fff;
+  cursor: pointer;
+  line-height: 1;
+  user-select: none;
+}
+.lb-chk:checked ~ .lb-ov { display: flex }
+```
+
+JS para cierre con Escape (inyectar una sola vez si hay al menos un bloque con lightbox):
+
+```html
+<script>document.addEventListener('keydown',function(e){if(e.key==='Escape')document.querySelectorAll('.lb-chk:checked').forEach(function(c){c.checked=false})})</script>
+```
+
+- El lightbox y el link son mutuamente excluyentes: si `lightbox` está activo, no se genera el wrapper `<a class="b-link">`.
+- El velo usa `rgba(0,0,0,0.85)` en light y `rgba(0,0,0,0.92)` en dark para mayor contraste.
+- La X de cerrar es blanca en ambos modos (siempre sobre fondo oscuro).
+- Los pares `<input>` + `<label class="lb-ov">` van al final de `.waxp` para evitar que secciones superiores los tapen.
 
 ### Button (`writeButtonBlock`)
 

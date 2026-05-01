@@ -8,6 +8,7 @@ import (
 
 func buildHTML(sections []sectionRender, opts SiteOptions, data PageData) string {
 	var b strings.Builder
+	var lb strings.Builder
 
 	b.WriteString("<!DOCTYPE html>")
 	fmt.Fprintf(&b, "<html lang=\"%s\" data-theme=\"light\">", data.Locale)
@@ -69,7 +70,11 @@ func buildHTML(sections []sectionRender, opts SiteOptions, data PageData) string
 	b.WriteString("<div class=\"waxp\">")
 
 	for _, sr := range sections {
-		writeSectionHTML(&b, sr, opts, data)
+		writeSectionHTML(&b, sr, opts, data, &lb)
+	}
+
+	if lb.Len() > 0 {
+		b.WriteString(lb.String())
 	}
 
 	b.WriteString("</div>")
@@ -101,11 +106,15 @@ func buildHTML(sections []sectionRender, opts SiteOptions, data PageData) string
 		b.WriteString(`<script>(function(){var s=document.querySelectorAll('.sr');window.addEventListener('scroll',function(){s.forEach(function(e){e.classList.toggle('sr-scrolled',window.scrollY>0)})})})();</script>`)
 	}
 
+	if lb.Len() > 0 {
+		b.WriteString(`<script>document.addEventListener('keydown',function(e){if(e.key==='Escape')document.querySelectorAll('.lb-chk:checked').forEach(function(c){c.checked=false})})</script>`)
+	}
+
 	b.WriteString("</body></html>")
 	return b.String()
 }
 
-func writeSectionHTML(b *strings.Builder, sr sectionRender, opts SiteOptions, data PageData) {
+func writeSectionHTML(b *strings.Builder, sr sectionRender, opts SiteOptions, data PageData, lb *strings.Builder) {
 	s := sr.section
 	p := sr.cssPrefix
 
@@ -132,14 +141,14 @@ func writeSectionHTML(b *strings.Builder, sr sectionRender, opts SiteOptions, da
 	}
 
 	for i := range s.Blocks {
-		writeBlockHTML(b, &s.Blocks[i], p, opts, data)
+		writeBlockHTML(b, &s.Blocks[i], p, opts, data, lb)
 	}
 
 	b.WriteString("</div>")
 	b.WriteString("</div>")
 }
 
-func writeBlockHTML(b *strings.Builder, blk *Block, prefix string, opts SiteOptions, data PageData) {
+func writeBlockHTML(b *strings.Builder, blk *Block, prefix string, opts SiteOptions, data PageData, lb *strings.Builder) {
 	fmt.Fprintf(b, "<div class=\"%s-b%d b\">", prefix, blk.ID)
 
 	bgOverlay := writeOverlayCSS(blk.Style.Background, "light", data.MediaBase)
@@ -163,7 +172,7 @@ func writeBlockHTML(b *strings.Builder, blk *Block, prefix string, opts SiteOpti
 	case "Text":
 		writeTextBlock(b, blk)
 	case "Image":
-		writeImageBlock(b, blk, data)
+		writeImageBlock(b, blk, data, lb)
 	case "Button":
 		writeButtonBlock(b, blk, prefix, opts)
 	case "Space":
@@ -187,7 +196,7 @@ func writeTextBlock(b *strings.Builder, blk *Block) {
 	fmt.Fprintf(b, "<div class=\"b-tiptap\">%s</div>", text)
 }
 
-func writeImageBlock(b *strings.Builder, blk *Block, data PageData) {
+func writeImageBlock(b *strings.Builder, blk *Block, data PageData, lb *strings.Builder) {
 	if blk.Image == nil {
 		return
 	}
@@ -209,6 +218,51 @@ func writeImageBlock(b *strings.Builder, blk *Block, data PageData) {
 		style = "width:100%;height:auto;"
 	}
 
+	urlDark := img.URLDeskDark
+
+	if img.Lightbox {
+		fmt.Fprintf(b, "<label for=\"lb-%d\" class=\"lb-trigger\">", blk.ID)
+		if urlDark != "" {
+			fmt.Fprintf(b, "<img src=\"%s%s\" alt=\"%s\" style=\"%s\" loading=\"lazy\" class=\"img-light\">",
+				data.MediaBase, urlLight, html.EscapeString(alt), style,
+			)
+			fmt.Fprintf(b, "<img src=\"%s%s\" alt=\"%s\" style=\"%s\" loading=\"lazy\" class=\"img-dark\">",
+				data.MediaBase, urlDark, html.EscapeString(alt), style,
+			)
+		} else {
+			fmt.Fprintf(b, "<img src=\"%s%s\" alt=\"%s\" style=\"%s\" loading=\"lazy\">",
+				data.MediaBase, urlLight, html.EscapeString(alt), style,
+			)
+		}
+		b.WriteString("</label>")
+
+		fmt.Fprintf(lb, "<style>")
+		fmt.Fprintf(lb, "#lb-%d:checked~#lb-ov-%d{display:flex;}", blk.ID, blk.ID)
+		if urlDark != "" {
+			fmt.Fprintf(lb, "#lb-ov-%d .lb-d{display:none;}", blk.ID)
+			fmt.Fprintf(lb, ":root[data-theme=\"dark\"] #lb-ov-%d .lb-l{display:none;}", blk.ID)
+			fmt.Fprintf(lb, ":root[data-theme=\"dark\"] #lb-ov-%d .lb-d{display:block;}", blk.ID)
+		}
+		fmt.Fprintf(lb, "</style>")
+		fmt.Fprintf(lb, "<input type=\"checkbox\" id=\"lb-%d\" class=\"lb-chk\" hidden>", blk.ID)
+		fmt.Fprintf(lb, "<label for=\"lb-%d\" class=\"lb-ov\" id=\"lb-ov-%d\">", blk.ID, blk.ID)
+		if urlDark != "" {
+			fmt.Fprintf(lb, "<img src=\"%s%s\" alt=\"%s\" style=\"max-width:90vw;max-height:90vh;object-fit:contain;border-radius:4px\" class=\"lb-l\">",
+				data.MediaBase, urlLight, html.EscapeString(alt),
+			)
+			fmt.Fprintf(lb, "<img src=\"%s%s\" alt=\"%s\" style=\"max-width:90vw;max-height:90vh;object-fit:contain;border-radius:4px\" class=\"lb-d\">",
+				data.MediaBase, urlDark, html.EscapeString(alt),
+			)
+		} else {
+			fmt.Fprintf(lb, "<img src=\"%s%s\" alt=\"%s\" style=\"max-width:90vw;max-height:90vh;object-fit:contain;border-radius:4px\">",
+				data.MediaBase, urlLight, html.EscapeString(alt),
+			)
+		}
+		lb.WriteString("<span class=\"lb-x\">&times;</span>")
+		lb.WriteString("</label>")
+		return
+	}
+
 	href := ""
 	target := ""
 	rel := ""
@@ -219,8 +273,6 @@ func writeImageBlock(b *strings.Builder, blk *Block, data PageData) {
 			rel = " rel=\"noopener noreferrer\""
 		}
 	}
-
-	urlDark := img.URLDeskDark
 
 	if href != "" {
 		fmt.Fprintf(b, "<a class=\"b-link\" href=\"%s\"%s%s>", html.EscapeString(href), target, rel)

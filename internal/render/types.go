@@ -139,6 +139,7 @@ type BlockImage struct {
 	URLTabDark  string `json:"url_tab_dark"`
 	URLMobDark  string `json:"url_mob_dark"`
 	Fit         string `json:"fit"`
+	Lightbox    bool   `json:"lightbox"`
 }
 
 type BlockLink struct {
