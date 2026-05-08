@@ -116,7 +116,7 @@ func writeBaseBlockCSS(b *strings.Builder) {
 	b.WriteString(":root[data-theme=\"dark\"] .img-dark{display:block;}")
 
 	b.WriteString(".lb-chk{display:none;}")
-	b.WriteString(".lb-trigger{cursor:zoom-in;}")
+	b.WriteString(".lb-trigger{cursor:zoom-in;display:flex;width:100%;height:100%;}")
 	b.WriteString(".lb-ov{display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;background:rgba(0,0,0,.85);cursor:zoom-out;}")
 	b.WriteString(":root[data-theme=\"dark\"] .lb-ov{background:rgba(0,0,0,.92);}")
 	b.WriteString(".lb-x{position:absolute;top:16px;right:16px;font-size:32px;color:#fff;cursor:pointer;line-height:1;user-select:none;-webkit-user-select:none;}")

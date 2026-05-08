@@ -3,6 +3,7 @@ package render
 import (
 	"fmt"
 	"html"
+	"regexp"
 	"strings"
 )
 
@@ -191,8 +192,23 @@ func writeBlockHTML(b *strings.Builder, blk *Block, prefix string, opts SiteOpti
 	b.WriteString("</div>")
 }
 
+var (
+	reAnchorInternal = regexp.MustCompile(`<a\b[^>]*href="(/[^"]*)"[^>]*>`)
+	reTargetBlank    = regexp.MustCompile(` target="_blank"`)
+	reRelAttr        = regexp.MustCompile(` rel="[^"]*"`)
+)
+
+func cleanInternalLinks(s string) string {
+	return reAnchorInternal.ReplaceAllStringFunc(s, func(tag string) string {
+		tag = reTargetBlank.ReplaceAllString(tag, "")
+		tag = reRelAttr.ReplaceAllString(tag, "")
+		return tag
+	})
+}
+
 func writeTextBlock(b *strings.Builder, blk *Block) {
 	text := getLocale(blk.Locales, "text")
+	text = cleanInternalLinks(text)
 	fmt.Fprintf(b, "<div class=\"b-tiptap\">%s</div>", text)
 }
 
