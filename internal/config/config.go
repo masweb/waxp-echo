@@ -50,6 +50,12 @@ func loadCommon(envKeys ...struct {
 	return vals, nil
 }
 
+type Config = AdminConfig
+
+func Load() (*Config, error) {
+	return LoadAdmin()
+}
+
 func LoadAdmin() (*AdminConfig, error) {
 	env := loadEnv()
 

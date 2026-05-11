@@ -17,11 +17,11 @@ import (
 
 type Server struct {
 	Echo   *echo.Echo
-	Config *config.Config
+	Config *config.AdminConfig
 	Pool   *pgxpool.Pool
 }
 
-func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
+func New(cfg *config.AdminConfig, pool *pgxpool.Pool) *Server {
 	e := echo.New()
 
 	e.Use(middleware.RequestLogger())
