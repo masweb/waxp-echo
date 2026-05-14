@@ -279,19 +279,11 @@ func writeImageBlock(b *strings.Builder, blk *Block, data PageData, lb *strings.
 		return
 	}
 
-	href := ""
-	target := ""
-	rel := ""
-	if blk.Link != nil && blk.Link.URL != "" {
-		href = blk.Link.URL
-		if blk.Link.Type == "external" {
-			target = " target=\"_blank\""
-			rel = " rel=\"noopener noreferrer\""
-		}
-	}
+	url, linkType := resolveLink(blk)
+	hrefAttr, target, rel := linkAttrs(url, linkType)
 
-	if href != "" {
-		fmt.Fprintf(b, "<a class=\"b-link\" href=\"%s\"%s%s>", html.EscapeString(href), target, rel)
+	if hrefAttr != "" {
+		fmt.Fprintf(b, "<a class=\"b-link\"%s%s%s>", hrefAttr, target, rel)
 	}
 
 	if urlDark != "" {
@@ -307,7 +299,7 @@ func writeImageBlock(b *strings.Builder, blk *Block, data PageData, lb *strings.
 		)
 	}
 
-	if href != "" {
+	if hrefAttr != "" {
 		b.WriteString("</a>")
 	}
 }
@@ -321,16 +313,10 @@ func writeButtonBlock(b *strings.Builder, blk *Block, prefix string, opts SiteOp
 	selector := fmt.Sprintf("%s-b%d", prefix, blk.ID)
 
 	tag := "button"
-	href := ""
-	target := ""
-	rel := ""
-	if blk.Link != nil && blk.Link.URL != "" {
+	url, linkType := resolveLink(blk)
+	hrefAttr, target, rel := linkAttrs(url, linkType)
+	if hrefAttr != "" {
 		tag = "a"
-		href = fmt.Sprintf(" href=\"%s\"", html.EscapeString(blk.Link.URL))
-		if blk.Link.Type == "external" {
-			target = " target=\"_blank\""
-			rel = " rel=\"noopener noreferrer\""
-		}
 	}
 
 	var inlineStyle []string
@@ -401,7 +387,7 @@ func writeButtonBlock(b *strings.Builder, blk *Block, prefix string, opts SiteOp
 
 	fmt.Fprintf(b, "<div class=\"btn-wrap\">")
 
-	fmt.Fprintf(b, "<%s class=\"btn-b\"%s%s%s", tag, href, target, rel)
+	fmt.Fprintf(b, "<%s class=\"btn-b\"%s%s%s", tag, hrefAttr, target, rel)
 	if inlineStyleStr != "" {
 		fmt.Fprintf(b, " style=\"%s\"", inlineStyleStr)
 	}
@@ -485,24 +471,16 @@ func writeIconBlock(b *strings.Builder, blk *Block, prefix string, opts SiteOpti
 		darkColor = opts.DarkColor
 	}
 
-	href := ""
-	target := ""
-	rel := ""
-	if blk.Link != nil && blk.Link.URL != "" {
-		href = fmt.Sprintf(" href=\"%s\"", html.EscapeString(blk.Link.URL))
-		if blk.Link.Type == "external" {
-			target = " target=\"_blank\""
-			rel = " rel=\"noopener noreferrer\""
-		}
-	}
+	url, linkType := resolveLink(blk)
+	hrefAttr, target, rel := linkAttrs(url, linkType)
 
 	fmt.Fprintf(b, "<style>")
 	fmt.Fprintf(b, ".%s .icon-wrap{color:%s;}", selector, lightColor)
 	fmt.Fprintf(b, ":root[data-theme=\"dark\"] .%s .icon-wrap{color:%s;}", selector, darkColor)
 	b.WriteString("</style>")
 
-	if href != "" {
-		fmt.Fprintf(b, "<a class=\"b-link icon-wrap\"%s%s%s>", href, target, rel)
+	if hrefAttr != "" {
+		fmt.Fprintf(b, "<a class=\"b-link icon-wrap\"%s%s%s>", hrefAttr, target, rel)
 		b.WriteString(svgContent)
 		b.WriteString("</a>")
 	} else {
@@ -648,6 +626,33 @@ func getLocale(locales map[string]interface{}, key string) string {
 		return ""
 	}
 	return s
+}
+
+func resolveLinkURL(blk *Block) string {
+	if blk.Link != nil && blk.Link.URL != "" {
+		return blk.Link.URL
+	}
+	return getLocale(blk.Locales, "linkUrl")
+}
+
+func resolveLink(blk *Block) (url, linkType string) {
+	url = resolveLinkURL(blk)
+	if blk.Link != nil {
+		linkType = blk.Link.Type
+	}
+	return
+}
+
+func linkAttrs(url, linkType string) (href, target, rel string) {
+	if url == "" {
+		return "", "", ""
+	}
+	href = fmt.Sprintf(" href=\"%s\"", html.EscapeString(url))
+	if linkType == "external" {
+		target = " target=\"_blank\""
+		rel = " rel=\"noopener noreferrer\""
+	}
+	return
 }
 
 func buildRoutePath(localeCode string, isDefault bool, slug string) string {

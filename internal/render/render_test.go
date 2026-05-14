@@ -14,22 +14,26 @@ func TestRenderBlocksWithExternalLinks(t *testing.T) {
 			Tablet:  BreakpointSize{Cols: 8, Rows: 4, Gap: 10},
 			Mobile:  BreakpointSize{Cols: 4, Rows: 4, Gap: 10},
 			Blocks: []Block{
-				{
+			{
 					ID:   1,
 					Type: "Icon",
 					Icon: &BlockIcon{Name: "external-link", StrokeWidth: 1.5},
-					Link: &BlockLink{Type: "external", URL: "https://example.com/icon"},
-					D:    BlockCoords{X: 1, Y: 1, W: 1, H: 1},
-					M:    BlockCoords{X: 1, Y: 1, W: 1, H: 1},
-					T:    BlockCoords{X: 1, Y: 1, W: 1, H: 1},
+					Link: &BlockLink{Type: "external"},
+					Locales: map[string]interface{}{
+						"linkUrl": "https://example.com/icon",
+					},
+					D: BlockCoords{X: 1, Y: 1, W: 1, H: 1},
+					M: BlockCoords{X: 1, Y: 1, W: 1, H: 1},
+					T: BlockCoords{X: 1, Y: 1, W: 1, H: 1},
 				},
 				{
 					ID:    2,
 					Type:  "Image",
 					Image: &BlockImage{URLDesk: "/images/photo.jpg"},
-					Link:  &BlockLink{Type: "external", URL: "https://example.com/image"},
+					Link:  &BlockLink{Type: "external"},
 					Locales: map[string]interface{}{
-						"alt": "Test image",
+						"alt":     "Test image",
+						"linkUrl": "https://example.com/image",
 					},
 					D: BlockCoords{X: 2, Y: 1, W: 2, H: 2},
 					M: BlockCoords{X: 2, Y: 1, W: 2, H: 2},
@@ -50,9 +54,10 @@ func TestRenderBlocksWithExternalLinks(t *testing.T) {
 						Width:           "50",
 						Padding:         Sides{T: "10", R: "20", B: "10", L: "20"},
 					},
-					Link: &BlockLink{Type: "external", URL: "https://example.com/button"},
+					Link: &BlockLink{Type: "external"},
 					Locales: map[string]interface{}{
-						"label": "Click me",
+						"label":   "Click me",
+						"linkUrl": "https://example.com/button",
 					},
 					D: BlockCoords{X: 4, Y: 1, W: 2, H: 1},
 					M: BlockCoords{X: 4, Y: 1, W: 2, H: 1},
@@ -186,6 +191,35 @@ func TestIconNameNormalization(t *testing.T) {
 			t.Errorf("toPascalCase(%q) = %q, want %q", tt.in, got, tt.want)
 		}
 	}
+}
+
+func TestResolveLinkURL(t *testing.T) {
+	t.Run("URL from Link.URL takes precedence", func(t *testing.T) {
+		blk := &Block{
+			Link:    &BlockLink{Type: "external", URL: "https://direct.com"},
+			Locales: map[string]interface{}{"linkUrl": "https://locale.com"},
+		}
+		if got := resolveLinkURL(blk); got != "https://direct.com" {
+			t.Errorf("got %q, want %q", got, "https://direct.com")
+		}
+	})
+
+	t.Run("URL from locales.linkUrl when Link.URL is empty", func(t *testing.T) {
+		blk := &Block{
+			Link:    &BlockLink{Type: "external"},
+			Locales: map[string]interface{}{"linkUrl": "https://locale.com"},
+		}
+		if got := resolveLinkURL(blk); got != "https://locale.com" {
+			t.Errorf("got %q, want %q", got, "https://locale.com")
+		}
+	})
+
+	t.Run("empty when no link", func(t *testing.T) {
+		blk := &Block{}
+		if got := resolveLinkURL(blk); got != "" {
+			t.Errorf("got %q, want empty", got)
+		}
+	})
 }
 
 func TestGetIconSVG(t *testing.T) {
