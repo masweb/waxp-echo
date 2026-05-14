@@ -1,0 +1,52 @@
+[
+  {
+    "id": "TC001",
+    "title": "get_health_check_status",
+    "description": "Verify that GET /health returns status 200 with {\"status\":\"ok\"} when the service is running."
+  },
+  {
+    "id": "TC002",
+    "title": "post_api_auth_register_new_user",
+    "description": "Test POST /api/auth/register with valid email and password returns 201 with JWT token and user object."
+  },
+  {
+    "id": "TC003",
+    "title": "post_api_auth_login_valid_credentials",
+    "description": "Test POST /api/auth/login with valid credentials returns 200 with JWT token and user object."
+  },
+  {
+    "id": "TC004",
+    "title": "get_api_me_authenticated_user",
+    "description": "Verify GET /api/me with valid Bearer token returns 200 with current authenticated user profile."
+  },
+  {
+    "id": "TC005",
+    "title": "post_api_sites_create_site",
+    "description": "Test POST /api/sites with valid name, unique domain, options, and locales returns 201 with created site and default pages/locales."
+  },
+  {
+    "id": "TC006",
+    "title": "get_api_sites_list_sites",
+    "description": "Verify GET /api/sites returns 200 with paginated and optionally filtered list of sites."
+  },
+  {
+    "id": "TC007",
+    "title": "put_api_sites_id_update_site",
+    "description": "Test PUT /api/sites/:id with locale query and updated name/domain/options returns 200 with updated site."
+  },
+  {
+    "id": "TC008",
+    "title": "put_api_sites_id_live_set_site_live",
+    "description": "Verify PUT /api/sites/:id/live sets the site as live and returns 200 with site object."
+  },
+  {
+    "id": "TC009",
+    "title": "post_api_sites_id_locales_add_locale",
+    "description": "Test POST /api/sites/:id/locales with locale code and is_default adds a locale and returns 201 with created locale object."
+  },
+  {
+    "id": "TC010",
+    "title": "post_api_sites_id_pages_create_page",
+    "description": "Verify POST /api/sites/:id/pages with locale, type, slugs, and layout creates a page and returns 201 with resolved layout."
+  }
+]

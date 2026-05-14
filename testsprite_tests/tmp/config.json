@@ -1,0 +1,18 @@
+{
+  "status": "commited",
+  "type": "backend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:8080",
+  "backendAuthType": "public",
+  "executionArgs": {
+    "projectName": "echo",
+    "projectPath": "/Users/guille/Code/waxp/echo",
+    "testIds": [],
+    "additionalInstruction": "",
+    "serverMode": "production",
+    "envs": {
+      "API_KEY": "sk-user-0a-5UZxPKFKZuDBZ7QIm1GgAgQcjOXjGpJiBBk5IAO6WWD1DVaQh0kldJaIaubAff8m998KjJH1iSe45dsGj5CNwzdQTTA_TE8bJs-lEyxmbvyKIT3foAyllEs-316Iw708"
+    }
+  },
+  "serverPort": 50083
+}

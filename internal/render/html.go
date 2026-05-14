@@ -325,14 +325,11 @@ func writeButtonBlock(b *strings.Builder, blk *Block, prefix string, opts SiteOp
 	target := ""
 	rel := ""
 	if blk.Link != nil && blk.Link.URL != "" {
+		tag = "a"
+		href = fmt.Sprintf(" href=\"%s\"", html.EscapeString(blk.Link.URL))
 		if blk.Link.Type == "external" {
-			tag = "a"
-			href = fmt.Sprintf(" href=\"%s\"", html.EscapeString(blk.Link.URL))
 			target = " target=\"_blank\""
 			rel = " rel=\"noopener noreferrer\""
-		} else if blk.Link.Type == "internal" {
-			tag = "a"
-			href = fmt.Sprintf(" href=\"%s\"", html.EscapeString(blk.Link.URL))
 		}
 	}
 
@@ -492,12 +489,10 @@ func writeIconBlock(b *strings.Builder, blk *Block, prefix string, opts SiteOpti
 	target := ""
 	rel := ""
 	if blk.Link != nil && blk.Link.URL != "" {
+		href = fmt.Sprintf(" href=\"%s\"", html.EscapeString(blk.Link.URL))
 		if blk.Link.Type == "external" {
-			href = fmt.Sprintf(" href=\"%s\"", html.EscapeString(blk.Link.URL))
 			target = " target=\"_blank\""
 			rel = " rel=\"noopener noreferrer\""
-		} else if blk.Link.Type == "internal" {
-			href = fmt.Sprintf(" href=\"%s\"", html.EscapeString(blk.Link.URL))
 		}
 	}
 

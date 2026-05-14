@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__TestSprite__testsprite_bootstrap",
+      "mcp__TestSprite__testsprite_generate_code_summary",
+      "Bash(go run *)",
+      "Bash(curl -s http://localhost:8080/health)",
+      "mcp__TestSprite__testsprite_generate_backend_test_plan",
+      "mcp__TestSprite__testsprite_generate_standardized_prd",
+      "mcp__TestSprite__testsprite_generate_code_and_execute",
+      "Bash(node \"/Users/guille/Library/Application Support/Zed/node/cache/_npx/8ddf6bea01b2519d/node_modules/@testsprite/testsprite-mcp/dist/index.js\" generateCodeAndExecute)"
+    ]
+  }
+}

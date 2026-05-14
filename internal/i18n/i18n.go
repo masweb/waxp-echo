@@ -173,13 +173,37 @@ func mergeSyncMap(inc, exist map[string]interface{}, locale string) map[string]i
 			inc[k] = wrapValue(v, locale)
 		}
 	}
+	for k, v := range exist {
+		if _, ok := inc[k]; !ok && k != "locales" && !localeMapKeys[k] {
+			inc[k] = v
+		}
+	}
 	return inc
 }
 
 func mergeSyncArray(inc []interface{}, exist []interface{}, locale string) []interface{} {
+	existByID := make(map[interface{}]interface{}, len(exist))
+	for _, e := range exist {
+		if m, ok := e.(map[string]interface{}); ok {
+			if id, ok := m["id"]; ok {
+				existByID[id] = e
+			}
+		}
+	}
 	for i, elem := range inc {
-		if i < len(exist) {
-			inc[i] = mergeSync(elem, exist[i], locale)
+		var existElem interface{}
+		if m, ok := elem.(map[string]interface{}); ok {
+			if id, ok := m["id"]; ok {
+				if e, found := existByID[id]; found {
+					existElem = e
+				}
+			}
+		}
+		if existElem == nil && i < len(exist) {
+			existElem = exist[i]
+		}
+		if existElem != nil {
+			inc[i] = mergeSync(elem, existElem, locale)
 		} else {
 			inc[i] = wrapValue(elem, locale)
 		}

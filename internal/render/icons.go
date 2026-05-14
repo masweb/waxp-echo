@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -33,7 +34,14 @@ func loadIcons() {
 
 func GetIconSVG(name string, strokeWidth float64) string {
 	loadIcons()
+
 	entry, ok := iconData[name]
+	if !ok {
+		entry, ok = iconData["Icon"+name]
+	}
+	if !ok {
+		entry, ok = iconData["Icon"+toPascalCase(name)]
+	}
 	if !ok {
 		return ""
 	}
@@ -54,4 +62,19 @@ func GetIconSVG(name string, strokeWidth float64) string {
 
 	svg += `</svg>`
 	return svg
+}
+
+func toPascalCase(s string) string {
+	parts := strings.Split(s, "-")
+	var b strings.Builder
+	for _, p := range parts {
+		if len(p) == 0 {
+			continue
+		}
+		b.WriteString(strings.ToUpper(p[:1]))
+		if len(p) > 1 {
+			b.WriteString(p[1:])
+		}
+	}
+	return b.String()
 }
