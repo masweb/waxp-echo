@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	_ "image/gif"
+	_ "image/png"
+
 	"github.com/chai2010/webp"
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/image/draw"

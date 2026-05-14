@@ -74,7 +74,7 @@ func writeBaseBlockCSS(b *strings.Builder) {
 	b.WriteString(".b{position:relative;display:flex;}")
 	b.WriteString(".b-clip{overflow:hidden;}")
 	b.WriteString(".b-overlay{position:absolute;inset:0;pointer-events:none;z-index:0;}")
-	b.WriteString(".b-inner{position:relative;z-index:1;width:100%;height:100%;display:flex;align-items:start;}")
+	b.WriteString(".b-inner{position:relative;z-index:1;width:100%;height:100%;display:flex;}")
 	b.WriteString(".b-center{align-items:center!important;justify-content:center!important;}")
 	b.WriteString(".b-link{color:inherit;text-decoration:none;cursor:pointer;}")
 	b.WriteString(".b-link:hover{opacity:0.85;}")

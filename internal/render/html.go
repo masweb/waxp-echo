@@ -185,7 +185,7 @@ func writeBlockHTML(b *strings.Builder, blk *Block, prefix string, opts SiteOpti
 	case "Icon":
 		writeIconBlock(b, blk, prefix, opts)
 	case "Menu":
-		writeMenuBlock(b, blk, prefix, blk.ID, opts)
+		writeMenuBlock(b, blk, prefix, blk.ID, opts, data)
 	}
 
 	b.WriteString("</div>")
@@ -509,7 +509,7 @@ func writeLangBlock(b *strings.Builder, blk *Block, data PageData) {
 	b.WriteString("</select>")
 }
 
-func writeMenuBlock(b *strings.Builder, blk *Block, prefix string, blkID int64, opts SiteOptions) {
+func writeMenuBlock(b *strings.Builder, blk *Block, prefix string, blkID int64, opts SiteOptions, data PageData) {
 	if len(blk.Menu) == 0 {
 		return
 	}
@@ -523,11 +523,22 @@ func writeMenuBlock(b *strings.Builder, blk *Block, prefix string, blkID int64, 
 		}
 	}
 
+	currentPath := currentPagePath(data)
+
 	selector := fmt.Sprintf("%s-b%d", prefix, blkID)
 
+	lightAccent := opts.LightAccentColor
+	if lightAccent == "" {
+		lightAccent = menuColors.Hover.Light
+	}
+	darkAccent := opts.DarkAccentColor
+	if darkAccent == "" {
+		darkAccent = menuColors.Hover.Dark
+	}
+
 	fmt.Fprintf(b, "<style>")
-	fmt.Fprintf(b, ".%s{--m-color:%s;--m-hover:%s;--m-active:%s;--m-sub-bg:#fff;}",
-		selector, menuColors.Color.Light, menuColors.Hover.Light, menuColors.Active.Light,
+	fmt.Fprintf(b, ".%s{--m-color:%s;--m-hover:%s;--m-active:%s;--m-accent:%s;--m-sub-bg:#fff;}",
+		selector, menuColors.Color.Light, menuColors.Hover.Light, menuColors.Active.Light, lightAccent,
 	)
 	fmt.Fprintf(b, ".%s .menu-link{color:var(--m-color);}",
 		selector,
@@ -538,8 +549,14 @@ func writeMenuBlock(b *strings.Builder, blk *Block, prefix string, blkID int64, 
 	fmt.Fprintf(b, ".%s .menu-sub{background:var(--m-sub-bg);}",
 		selector,
 	)
-	fmt.Fprintf(b, ":root[data-theme=\"dark\"] .%s{--m-color:%s;--m-hover:%s;--m-active:%s;--m-sub-bg:#2b2b2b;}",
-		selector, menuColors.Color.Dark, menuColors.Hover.Dark, menuColors.Active.Dark,
+	fmt.Fprintf(b, ".%s .menu-link--active{color:var(--m-accent) !important;}",
+		selector,
+	)
+	fmt.Fprintf(b, ".%s .menu-sublink--active{color:var(--m-accent) !important;}",
+		selector,
+	)
+	fmt.Fprintf(b, ":root[data-theme=\"dark\"] .%s{--m-color:%s;--m-hover:%s;--m-active:%s;--m-accent:%s;--m-sub-bg:#2b2b2b;}",
+		selector, menuColors.Color.Dark, menuColors.Hover.Dark, menuColors.Active.Dark, darkAccent,
 	)
 	fmt.Fprintf(b, "</style>")
 
@@ -557,8 +574,12 @@ func writeMenuBlock(b *strings.Builder, blk *Block, prefix string, blkID int64, 
 					html.EscapeString(item.Link.URL), l1Style, html.EscapeString(item.Label),
 				)
 			} else {
-				fmt.Fprintf(b, "<a class=\"menu-link\" href=\"%s\" style=\"%s\">%s</a>",
-					html.EscapeString(item.Link.URL), l1Style, html.EscapeString(item.Label),
+				activeClass := ""
+				if item.Link.URL == currentPath {
+					activeClass = " menu-link--active"
+				}
+				fmt.Fprintf(b, "<a class=\"menu-link%s\" href=\"%s\" style=\"%s\">%s</a>",
+					activeClass, html.EscapeString(item.Link.URL), l1Style, html.EscapeString(item.Label),
 				)
 			}
 		} else {
@@ -575,8 +596,12 @@ func writeMenuBlock(b *strings.Builder, blk *Block, prefix string, blkID int64, 
 							html.EscapeString(child.Link.URL), subStyle, html.EscapeString(child.Label),
 						)
 					} else {
-						fmt.Fprintf(b, "<li><a class=\"menu-sublink\" href=\"%s\" style=\"%s\">%s</a></li>",
-							html.EscapeString(child.Link.URL), subStyle, html.EscapeString(child.Label),
+						activeClass := ""
+						if child.Link.URL == currentPath {
+							activeClass = " menu-sublink--active"
+						}
+						fmt.Fprintf(b, "<li><a class=\"menu-sublink%s\" href=\"%s\" style=\"%s\">%s</a></li>",
+							activeClass, html.EscapeString(child.Link.URL), subStyle, html.EscapeString(child.Label),
 						)
 					}
 				} else {
@@ -591,6 +616,18 @@ func writeMenuBlock(b *strings.Builder, blk *Block, prefix string, blkID int64, 
 
 	b.WriteString("</ul>")
 	b.WriteString("</nav>")
+}
+
+func currentPagePath(data PageData) string {
+	for _, sl := range data.PageSlugs {
+		if sl.LocaleCode == data.Locale {
+			return buildRoutePath(sl.LocaleCode, sl.IsDefault, sl.Slug)
+		}
+	}
+	if data.Locale != "" {
+		return "/" + data.Locale
+	}
+	return "/"
 }
 
 func fontStyles(f *Font) string {
